@@ -446,10 +446,8 @@ class DriverAssistance:
             # Process validated turn warnings
             for turn in upcoming_turns:
                 if turn['distance'] <= self.turn_warning_distance:
-                    turn_msg = (f"Prepare to turn {turn['type']} in {turn['distance']:.0f}m "
-                              f"(angle: {abs(turn['angle']):.1f}°)")
-                    print(turn_msg)
-                    print(self.vehicle_id)
+                    turn_msg = (f"Prepare to turn {turn['type']} in {turn['distance']:.0f}m ")
+                   
                     
                     # Avoid duplicate warnings and validate turn type
                     if (turn_msg != self.last_turn_warning and 
@@ -468,7 +466,7 @@ class DriverAssistance:
             # Check if speed should be maintained
             if not speed_changes and state.speed > 0:
                 maintain_msg = f"Maintain current speed of {state.speed:.1f} m/s"
-                print(maintain_msg)
+              
                 if maintain_msg != self.last_maintain_advice:
                     updates.append(maintain_msg)
                     self.last_maintain_advice = maintain_msg
@@ -512,9 +510,9 @@ class AdvancedTrafficManager:
     def __init__(self): 
         self.sumo_config = { 
             'gui': True, 
-            'config_file': r'C:\Users\ghana\OneDrive\Desktop\hell\edit.sumocfg', 
-            'net_file': r'C:\Users\ghana\OneDrive\Desktop\hell\edit.net.xml', 
-            'route_file': r'C:\Users\ghana\OneDrive\Desktop\hell\edit.rou.xml', 
+            'config_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.sumocfg', 
+            'net_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.net.xml', 
+            'route_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.rou.xml',  
         } 
          
         # System parameters with improved thresholds 
@@ -558,7 +556,7 @@ class AdvancedTrafficManager:
         # Traffic management parameters with improved values 
         self.MAX_REROUTE_ATTEMPTS = 4  # Increased from 3 
         self.MIN_REROUTE_INTERVAL = 180  # Reduced from 300 
-        self.CONGESTION_HISTORY_SIZE = 40  # Increased from 30 
+        self.CONGESTION_HISTORY_SIZE = 40  # Increased   from 30 
         self.ADAPTIVE_ROUTING_THRESHOLD = 0.65  # Reduced from 0.7 
          
         # Signal timing parameters with improved values 
@@ -825,16 +823,7 @@ class AdvancedTrafficManager:
             
             occupancy_factor = min(1.0, current_occupancy / 100)
 
-            # Time-based factors (peak hours consideration)
-            current_time = traci.simulation.getTime()
-            hour = (current_time / 3600) % 24
-            
-            # Define peak hours (morning and evening rush hours)
-            morning_peak = 1.3 if 7 <= hour <= 10 else 1.0
-            evening_peak = 1.3 if 16 <= hour <= 19 else 1.0
-            time_factor = max(morning_peak, evening_peak)
-
-            # Weighted combination of all factors
+            # Weighted combination of all factors (removed time-based factors)
             prediction = (
                 0.25 * metrics.congestion_index +     # Current congestion (highest weight)
                 0.20 * historical_trend +             # Historical pattern
@@ -844,9 +833,6 @@ class AdvancedTrafficManager:
                 0.10 * occupancy_factor +             # Current occupancy
                 0.05 * max(0, congestion_rate)        # Rate of change (trend)
             )
-
-            # Apply time factor
-            prediction *= time_factor
 
             # Apply downstream congestion influence
             try:

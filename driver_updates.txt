@@ -1,0 +1,75 @@
+
+[23:15:01] Updates:
+- Maintain current speed of 22.2 m/s
+
+[23:15:01] Updates:
+- Prepare to turn left in 40m 
+
+[23:15:01] Updates:
+- Prepare to turn left in 23m 
+- Prepare to turn right in 43m 
+
+[23:15:01] Updates:
+- Prepare to turn left in 12m 
+- Prepare to turn right in 31m 
+
+[23:15:01] Updates:
+- Prepare to turn left in 4m 
+- Prepare to turn right in 24m 
+
+[23:15:01] Updates:
+- Prepare to turn right in 12m 
+- Maintain current speed of 8.9 m/s
+
+[23:15:02] Updates:
+- Prepare to turn right in 2m 
+
+[23:15:02] Updates:
+- Maintain current speed of 5.4 m/s
+
+[23:15:02] Updates:
+- Prepare to turn slight left in 36m 
+
+[23:15:02] Updates:
+- Prepare to turn slight left in 20m 
+
+[23:15:02] Updates:
+- Prepare to turn slight left in 9m 
+
+[23:15:14] Updates:
+- Prepare to turn slight left in 2m 
+- Maintain current speed of 6.7 m/s
+
+[23:15:14] Updates:
+- Maintain current speed of 7.9 m/s
+
+[23:15:14] Updates:
+- Prepare to turn right in 41m 
+
+[23:15:14] Updates:
+- Prepare to turn right in 24m 
+
+[23:15:14] Updates:
+- Prepare to turn right in 11m 
+- Maintain current speed of 14.5 m/s
+
+[23:15:14] Updates:
+- Prepare to turn right in 1m 
+
+[23:15:15] Updates:
+- Maintain current speed of 7.6 m/s
+
+[23:15:15] Updates:
+- Maintain current speed of 11.6 m/s
+
+[23:15:15] Updates:
+- Prepare to turn slight right in 40m 
+
+[23:15:15] Updates:
+- Prepare to turn slight right in 18m 
+
+[23:15:15] Updates:
+- Prepare to turn slight right in 0m 
+
+[23:15:15] Updates:
+- Maintain current speed of 15.7 m/s
