@@ -1,75 +1,716 @@
 
-[23:15:01] Updates:
-- Maintain current speed of 22.2 m/s
-
-[23:15:01] Updates:
-- Prepare to turn left in 40m 
-
-[23:15:01] Updates:
-- Prepare to turn left in 23m 
-- Prepare to turn right in 43m 
-
-[23:15:01] Updates:
-- Prepare to turn left in 12m 
-- Prepare to turn right in 31m 
-
-[23:15:01] Updates:
-- Prepare to turn left in 4m 
-- Prepare to turn right in 24m 
-
-[23:15:01] Updates:
-- Prepare to turn right in 12m 
+[23:38:12] Updates:
+- Prepare to turn right in 13m 
 - Maintain current speed of 8.9 m/s
 
-[23:15:02] Updates:
-- Prepare to turn right in 2m 
+[23:38:12] Updates:
+- Prepare to turn right in 5m 
 
-[23:15:02] Updates:
-- Maintain current speed of 5.4 m/s
-
-[23:15:02] Updates:
-- Prepare to turn slight left in 36m 
-
-[23:15:02] Updates:
-- Prepare to turn slight left in 20m 
-
-[23:15:02] Updates:
-- Prepare to turn slight left in 9m 
-
-[23:15:14] Updates:
-- Prepare to turn slight left in 2m 
-- Maintain current speed of 6.7 m/s
-
-[23:15:14] Updates:
-- Maintain current speed of 7.9 m/s
-
-[23:15:14] Updates:
-- Prepare to turn right in 41m 
-
-[23:15:14] Updates:
-- Prepare to turn right in 24m 
-
-[23:15:14] Updates:
-- Prepare to turn right in 11m 
-- Maintain current speed of 14.5 m/s
-
-[23:15:14] Updates:
+[23:38:12] Updates:
 - Prepare to turn right in 1m 
+- Maintain current speed of 4.3 m/s
 
-[23:15:15] Updates:
-- Maintain current speed of 7.6 m/s
+[23:38:12] Updates:
+- Maintain current speed of 5.5 m/s
 
-[23:15:15] Updates:
+[23:38:13] Updates:
+- Prepare to turn slight left in 40m 
+- Maintain current speed of 20.8 m/s
+
+[23:38:13] Updates:
+- Prepare to turn slight left in 24m 
+- Prepare to turn slight left in 35m 
+- Prepare to turn right in 35m 
+
+[23:38:13] Updates:
+- Prepare to turn slight left in 12m 
+- Prepare to turn slight left in 23m 
+- Prepare to turn right in 23m 
+
+[23:38:13] Updates:
+- Prepare to turn slight left in 4m 
+- Prepare to turn slight left in 16m 
+- Prepare to turn right in 16m 
+
+[23:38:13] Updates:
+- Prepare to turn slight left in 8m 
+- Prepare to turn right in 8m 
+- Maintain current speed of 5.3 m/s
+
+[23:38:13] Updates:
+- Prepare to turn slight left in 2m 
+- Prepare to turn right in 2m 
+- Maintain current speed of 5.8 m/s
+
+[23:38:13] Updates:
+- Maintain current speed of 4.9 m/s
+
+[23:38:13] Updates:
+- Maintain current speed of 6.6 m/s
+
+[23:38:13] Updates:
+- Maintain current speed of 9.1 m/s
+
+[23:38:13] Updates:
+- Maintain current speed of 10.8 m/s
+
+[23:38:13] Updates:
+- Maintain current speed of 12.3 m/s
+
+[23:38:18] Updates:
+- Maintain current speed of 14.3 m/s
+
+[23:38:18] Updates:
+- Maintain current speed of 16.5 m/s
+
+[23:38:18] Updates:
+- Maintain current speed of 18.3 m/s
+
+[23:38:18] Updates:
+- Prepare to turn left in 35m 
+- Maintain current speed of 20.3 m/s
+
+[23:38:18] Updates:
+- Prepare to turn left in 20m 
+
+[23:38:18] Updates:
+- Prepare to turn left in 8m 
 - Maintain current speed of 11.6 m/s
 
-[23:15:15] Updates:
-- Prepare to turn slight right in 40m 
+[23:38:18] Updates:
+- Prepare to turn left in 0m 
+- Maintain current speed of 7.7 m/s
 
-[23:15:15] Updates:
-- Prepare to turn slight right in 18m 
+[23:38:18] Updates:
+- Maintain current speed of 5.6 m/s
 
-[23:15:15] Updates:
-- Prepare to turn slight right in 0m 
+[23:38:18] Updates:
+- Prepare to turn left in 48m 
 
-[23:15:15] Updates:
-- Maintain current speed of 15.7 m/s
+[23:38:18] Updates:
+- Prepare to turn left in 31m 
+
+[23:38:18] Updates:
+- Prepare to turn left in 12m 
+
+[23:38:18] Updates:
+- Prepare to turn slight left in 42m 
+
+[23:38:18] Updates:
+- Prepare to turn slight left in 20m 
+
+[23:38:19] Updates:
+- Prepare to turn left in 43m 
+
+[23:38:19] Updates:
+- Prepare to turn left in 22m 
+
+[23:38:25] Updates:
+- Prepare to turn right in 32m 
+
+[23:38:25] Updates:
+- Prepare to turn right in 12m 
+
+[23:38:25] Updates:
+- Prepare to turn slight right in 49m 
+
+[23:38:26] Updates:
+- Prepare to turn slight right in 33m 
+
+[23:38:26] Updates:
+- Prepare to turn slight right in 17m 
+
+[23:38:26] Updates:
+- Prepare to turn slight right in 4m 
+
+[23:38:33] Updates:
+- Prepare to turn left in 47m 
+
+[23:38:33] Updates:
+- Prepare to turn left in 37m 
+
+[23:38:33] Updates:
+- Prepare to turn left in 32m 
+- Maintain current speed of 5.4 m/s
+
+[23:38:33] Updates:
+- Prepare to turn left in 31m 
+
+[23:38:40] Updates:
+- Prepare to turn left in 30m 
+
+[23:38:41] Updates:
+- Prepare to turn left in 29m 
+
+[23:39:59] Updates:
+- Prepare to turn left in 28m 
+
+[23:40:00] Updates:
+- Prepare to turn left in 27m 
+
+[23:40:00] Updates:
+- Prepare to turn left in 26m 
+
+[23:40:01] Updates:
+- Prepare to turn left in 25m 
+
+[23:40:01] Updates:
+- Prepare to turn left in 24m 
+
+[23:40:01] Updates:
+- Prepare to turn left in 23m 
+
+[23:40:02] Updates:
+- Prepare to turn left in 22m 
+
+[23:40:02] Updates:
+- Prepare to turn left in 21m 
+
+[23:40:13] Updates:
+- Prepare to turn left in 20m 
+
+[23:40:13] Updates:
+- Prepare to turn left in 19m 
+
+[23:40:14] Updates:
+- Prepare to turn left in 18m 
+
+[23:40:14] Updates:
+- Prepare to turn left in 17m 
+
+[23:40:14] Updates:
+- Prepare to turn left in 16m 
+
+[23:40:14] Updates:
+- Prepare to turn left in 15m 
+
+[23:40:15] Updates:
+- Prepare to turn left in 14m 
+
+[23:40:15] Updates:
+- Prepare to turn left in 13m 
+
+[23:40:15] Updates:
+- Prepare to turn left in 12m 
+
+[23:40:15] Updates:
+- Prepare to turn left in 11m 
+
+[23:40:16] Updates:
+- Prepare to turn left in 10m 
+
+[23:40:16] Updates:
+- Prepare to turn left in 9m 
+
+[23:40:16] Updates:
+- Prepare to turn left in 8m 
+
+[23:40:16] Updates:
+- Prepare to turn left in 7m 
+
+[23:40:17] Updates:
+- Prepare to turn left in 6m 
+
+[23:40:17] Updates:
+- Prepare to turn left in 5m 
+
+[23:40:24] Updates:
+- Prepare to turn left in 4m 
+
+[23:40:24] Updates:
+- Prepare to turn left in 3m 
+
+[23:40:24] Updates:
+- Prepare to turn left in 2m 
+
+[23:40:25] Updates:
+- Prepare to turn left in 1m 
+
+[23:40:25] Updates:
+- Prepare to turn left in 0m 
+
+[23:40:35] Updates:
+- Prepare to turn right in 49m 
+- Prepare to turn left in 49m 
+
+[23:40:35] Updates:
+- Prepare to turn right in 48m 
+- Prepare to turn left in 48m 
+
+[23:40:36] Updates:
+- Prepare to turn right in 46m 
+- Prepare to turn left in 46m 
+
+[23:40:36] Updates:
+- Prepare to turn right in 45m 
+- Prepare to turn left in 45m 
+
+[23:40:36] Updates:
+- Prepare to turn right in 43m 
+- Prepare to turn left in 44m 
+
+[23:40:36] Updates:
+- Prepare to turn right in 42m 
+- Prepare to turn left in 42m 
+
+[23:40:36] Updates:
+- Prepare to turn right in 40m 
+- Prepare to turn left in 41m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 39m 
+- Prepare to turn left in 39m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 37m 
+- Prepare to turn left in 38m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 36m 
+- Prepare to turn left in 36m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 34m 
+- Prepare to turn left in 35m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 33m 
+- Prepare to turn left in 33m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 31m 
+- Prepare to turn left in 32m 
+
+[23:40:37] Updates:
+- Prepare to turn right in 30m 
+- Prepare to turn left in 30m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 28m 
+- Prepare to turn left in 29m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 27m 
+- Prepare to turn left in 27m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 25m 
+- Prepare to turn left in 26m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 24m 
+- Prepare to turn left in 24m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 22m 
+- Prepare to turn left in 23m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 21m 
+- Prepare to turn left in 21m 
+
+[23:40:38] Updates:
+- Prepare to turn right in 19m 
+- Prepare to turn left in 20m 
+
+[23:40:39] Updates:
+- Prepare to turn right in 18m 
+- Prepare to turn left in 18m 
+
+[23:40:39] Updates:
+- Prepare to turn right in 16m 
+- Prepare to turn left in 17m 
+
+[23:40:39] Updates:
+- Prepare to turn right in 15m 
+- Prepare to turn left in 15m 
+
+[23:40:39] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:39] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:46] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:47] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:48] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 15m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 14m 
+- Prepare to turn left in 14m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 13m 
+- Prepare to turn left in 13m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 13m 
+- Prepare to turn left in 13m 
+
+[23:40:49] Updates:
+- Prepare to turn right in 12m 
+- Prepare to turn left in 12m 
+
+[23:40:50] Updates:
+- Prepare to turn right in 12m 
+- Prepare to turn left in 12m 
+
+[23:40:50] Updates:
+- Prepare to turn right in 11m 
+- Prepare to turn left in 11m 
+
+[23:40:50] Updates:
+- Prepare to turn right in 10m 
+- Prepare to turn left in 11m 
+
+[23:40:50] Updates:
+- Prepare to turn right in 10m 
+- Prepare to turn left in 10m 
+
+[23:40:50] Updates:
+- Prepare to turn right in 9m 
+- Prepare to turn left in 10m 
+
+[23:40:58] Updates:
+- Prepare to turn right in 9m 
+- Prepare to turn left in 9m 
+
+[23:40:58] Updates:
+- Prepare to turn right in 8m 
+- Prepare to turn left in 9m 
+
+[23:40:58] Updates:
+- Prepare to turn right in 8m 
+- Prepare to turn left in 8m 
+
+[23:40:58] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:58] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:59] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:59] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:59] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:59] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:40:59] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:00] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:00] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:00] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:00] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:00] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:01] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:01] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:01] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:01] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:02] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:02] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:02] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:02] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:03] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:03] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:03] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:04] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:04] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:04] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:05] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:13] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:13] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:14] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:14] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:14] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:14] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:14] Updates:
+- Prepare to turn right in 7m 
+- Prepare to turn left in 8m 
+
+[23:41:15] Updates:
+- Prepare to turn right in 6m 
+- Prepare to turn left in 6m 
+
+[23:41:15] Updates:
+- Prepare to turn right in 5m 
+- Prepare to turn left in 6m 
+
+[23:41:15] Updates:
+- Prepare to turn right in 5m 
+- Prepare to turn left in 5m 
+
+[23:41:15] Updates:
+- Prepare to turn right in 4m 
+
+[23:41:16] Updates:
+- Prepare to turn right in 3m 
+
+[23:41:17] Updates:
+- Prepare to turn right in 2m 
+
+[23:41:17] Updates:
+- Prepare to turn right in 1m 
+
+[23:41:17] Updates:
+- Prepare to turn right in 0m 
+
+[23:41:54] Updates:
+- Prepare to turn slight left in 49m 
+
+[23:41:54] Updates:
+- Prepare to turn slight left in 47m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 45m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 44m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 42m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 40m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 38m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 36m 
+
+[23:41:55] Updates:
+- Prepare to turn slight left in 34m 
+
+[23:41:56] Updates:
+- Prepare to turn slight left in 33m 
+
+[23:41:56] Updates:
+- Prepare to turn slight left in 31m 
+
+[23:41:56] Updates:
+- Prepare to turn slight left in 29m 
+
+[23:41:56] Updates:
+- Prepare to turn slight left in 27m 
+
+[23:41:56] Updates:
+- Prepare to turn slight left in 25m 
+
+[23:42:00] Updates:
+- Prepare to turn slight left in 24m 
+
+[23:42:00] Updates:
+- Prepare to turn slight left in 22m 
+
+[23:42:00] Updates:
+- Prepare to turn slight left in 19m 
+
+[23:42:00] Updates:
+- Prepare to turn slight left in 17m 
+
+[23:42:00] Updates:
+- Prepare to turn slight left in 15m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 13m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 10m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 8m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 6m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 4m 
+
+[23:42:01] Updates:
+- Prepare to turn slight left in 3m 
+
+[23:42:08] Updates:
+- Prepare to turn slight left in 2m 
+
+[23:42:08] Updates:
+- Prepare to turn slight left in 1m 
+
+[23:42:08] Updates:
+- Prepare to turn slight left in 0m 
+
+[23:42:36] Updates:
+- Maintain current speed of 1.5 m/s

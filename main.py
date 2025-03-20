@@ -1570,94 +1570,108 @@ class AdvancedTrafficManager:
                 current_phase = traci.trafficlight.getPhase(tls_id)
                 phase_duration = traci.trafficlight.getPhaseDuration(tls_id)
                 
+                # Track metrics per phase
+                phase_metrics = defaultdict(lambda: {
+                    'queue_length': 0,
+                    'waiting_time': 0,
+                    'flow_rate': 0,
+                    'stopped_vehicles': 0,
+                    'throughput': 0,
+                    'delay': 0
+                })
+                
                 # Collect metrics for all controlled lanes
-                lane_metrics = []
                 for lane_id in controlled_lanes:
                     try:
-                        # Queue metrics
+                        # Get lane metrics
                         queue_length = traci.lane.getLastStepHaltingNumber(lane_id)
                         waiting_time = traci.lane.getWaitingTime(lane_id)
-                        
-                        # Flow metrics
                         mean_speed = traci.lane.getLastStepMeanSpeed(lane_id)
                         vehicle_count = traci.lane.getLastStepVehicleNumber(lane_id)
                         occupancy = traci.lane.getLastStepOccupancy(lane_id)
                         
-                        # Calculate lane capacity and utilization
+                        # Get vehicles on the lane
+                        lane_vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+                        
+                        # Calculate additional metrics
+                        stopped_count = sum(1 for vid in lane_vehicles if traci.vehicle.getSpeed(vid) < 0.1)
+                        total_delay = sum(traci.vehicle.getAccumulatedWaitingTime(vid) for vid in lane_vehicles)
+                        
+                        # Calculate throughput (vehicles that have passed through)
                         lane = self.net.getLane(lane_id)
-                        lane_length = lane.getLength()
-                        max_speed = lane.getSpeed()
+                        edge_id = lane_id.split('_')[0]
+                        if edge_id in self.traffic_metrics:
+                            throughput = self.traffic_metrics[edge_id].flow_rate
+                        else:
+                            throughput = 0
                         
-                        # Calculate lane efficiency
-                        speed_ratio = mean_speed / max_speed if max_speed > 0 else 0
-                        flow_rate = vehicle_count * 3600 / phase_duration if phase_duration > 0 else 0
-                        
-                        lane_metrics.append({
-                            'queue_length': queue_length,
-                            'waiting_time': waiting_time,
-                            'speed_ratio': speed_ratio,
-                            'flow_rate': flow_rate,
-                            'occupancy': occupancy,
-                            'vehicle_count': vehicle_count
-                        })
+                        # Update phase metrics
+                        phase_metrics[current_phase]['queue_length'] += queue_length
+                        phase_metrics[current_phase]['waiting_time'] += waiting_time
+                        phase_metrics[current_phase]['flow_rate'] += vehicle_count * mean_speed
+                        phase_metrics[current_phase]['stopped_vehicles'] += stopped_count
+                        phase_metrics[current_phase]['throughput'] += throughput
+                        phase_metrics[current_phase]['delay'] += total_delay
                         
                     except Exception as e:
                         logger.warning(f"Error collecting metrics for lane {lane_id}: {str(e)}")
                         continue
                 
-                if not lane_metrics:
-                    continue
+                # Calculate phase-specific scores
+                for phase, metrics in phase_metrics.items():
+                    # Normalize metrics
+                    norm_queue = metrics['queue_length'] / max(1, len(controlled_lanes))
+                    norm_wait = metrics['waiting_time'] / max(1, metrics['flow_rate'])
+                    norm_stopped = metrics['stopped_vehicles'] / max(1, len(controlled_lanes))
+                    norm_delay = metrics['delay'] / max(1, metrics['throughput'])
+                    
+                    # Calculate phase efficiency
+                    if metrics['throughput'] > 0:
+                        efficiency = (metrics['flow_rate'] / metrics['throughput']) * (1 - norm_queue)
+                    else:
+                        efficiency = 0
+                    
+                    # Combine metrics with weights
+                    phase_score = (
+                        norm_queue * queue_weight * 2.0 +          # Higher weight for queues
+                        norm_wait * demand_weight * 1.5 +         # Weight waiting time by demand
+                        norm_stopped * 1.2 +                      # Penalty for stopped vehicles
+                        norm_delay * 1.3 +                        # Penalty for delays
+                        (1 - efficiency) * 1.5                    # Reward efficiency
+                    )
+                    
+                    signal_score += phase_score
                 
-                # Calculate signal-specific scores
-                avg_queue = np.mean([m['queue_length'] for m in lane_metrics])
-                max_queue = max(m['queue_length'] for m in lane_metrics)
-                avg_wait = np.mean([m['waiting_time'] for m in lane_metrics])
-                avg_speed_ratio = np.mean([m['speed_ratio'] for m in lane_metrics])
-                total_flow = sum(m['flow_rate'] for m in lane_metrics)
-                avg_occupancy = np.mean([m['occupancy'] for m in lane_metrics])
-                
-                # Queue penalty (higher weight for longer queues)
-                queue_penalty = (avg_queue * 1.0 + max_queue * 0.5) * queue_weight
-                
-                # Waiting time penalty
-                wait_penalty = avg_wait * demand_weight
-                
-                # Flow efficiency reward
-                flow_reward = total_flow * 0.01 * avg_speed_ratio
-                
-                # Phase utilization penalty
-                utilization_penalty = abs(0.7 - avg_occupancy) * 10  # Optimal occupancy around 70%
-                
-                # Combine metrics with improved weights
-                signal_score = (
-                    queue_penalty * 1.5 +      # Increased weight for queues
-                    wait_penalty * 1.2 +       # Increased weight for waiting time
-                    utilization_penalty * 0.8 - # Reduced weight for utilization
-                    flow_reward                # Reward for good flow
-                )
-                
-                # Add coordination penalty if applicable
+                # Add coordination penalty
                 if len(traci.trafficlight.getIDList()) > 1:
-                    # Check adjacent signals
                     for other_tls in traci.trafficlight.getIDList():
                         if other_tls != tls_id:
                             try:
                                 distance = self._get_signal_distance(tls_id, other_tls)
                                 if distance < 300:  # Only consider nearby signals
-                                    phase_diff = abs(traci.trafficlight.getPhase(tls_id) - 
-                                                   traci.trafficlight.getPhase(other_tls))
-                                    signal_score += phase_diff * 2.0  # Penalty for poor coordination
+                                    other_phase = traci.trafficlight.getPhase(other_tls)
+                                    phase_diff = abs(current_phase - other_phase)
+                                    
+                                    # Calculate coordination score based on phase difference
+                                    coord_score = phase_diff * (1 - (distance / 300))
+                                    signal_score += coord_score * 0.5  # Reduced weight for coordination
                             except:
                                 continue
                 
-                total_score += max(0, signal_score)  # Ensure non-negative score
+                # Add timing penalties
+                if base_green_time < self.MIN_GREEN_TIME * 1.2:  # Too short
+                    signal_score *= 1.5
+                elif base_green_time > self.MAX_GREEN_TIME * 0.8:  # Too long
+                    signal_score *= 1.3
+                
+                total_score += signal_score
             
-            # Normalize score by number of signals
+            # Normalize final score
             final_score = total_score / max(1, total_signals)
             
-            # Add penalty for extreme green times
-            if base_green_time < self.MIN_GREEN_TIME + 5 or base_green_time > self.MAX_GREEN_TIME - 5:
-                final_score *= 1.5  # Penalty for extreme timing
+            # Add small random variation to prevent identical scores
+            variation = random.uniform(0.98, 1.02)
+            final_score *= variation
             
             return final_score if final_score > 0 else float('inf')
             
