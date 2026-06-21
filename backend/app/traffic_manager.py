@@ -1,573 +1,63 @@
-import os 
-import traci 
-import sumolib 
-import numpy as np 
-import networkx as nx 
-from scipy.stats import entropy 
-from datetime import datetime 
-import logging 
-from typing import Dict, List, Tuple, Optional, Set, Any
-from dataclasses import dataclass 
-from collections import defaultdict 
-import sys 
-import itertools 
-import random 
-import math 
-import json
-from pathlib import Path
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+import os
+import sys
+import random
+import math
+import logging
 import threading
-from queue import Queue
+from datetime import datetime
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Set, Any
+import numpy as np
+import networkx as nx
+from scipy.stats import entropy
+import traci
+import sumolib
 
-# Configure logging with more detailed formatting 
-logging.basicConfig( 
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s', 
-    handlers=[ 
-        logging.FileHandler('traffic_management.log'), 
-        logging.StreamHandler() 
-    ] 
-) 
-logger = logging.getLogger(__name__) 
- 
-@dataclass 
-class VehicleState: 
-    id: str 
-    type: str 
-    position: Tuple[float, float] 
-    speed: float 
-    route: List[str] 
-    current_edge: str 
-    destination: str 
-    reroute_attempts: int 
-    priority: float 
-    last_reroute_time: float 
-    waiting_time: float 
-    lane_position: float 
-    acceleration: float 
-    last_speed: float = 0.0  # Added to track speed changes 
-    last_position: Tuple[float, float] = (0.0, 0.0)  # Added to track position changes 
- 
-class TrafficMetrics: 
-    def __init__(self): 
-        self.volume: float = 0.0 
-        self.speed_variance: float = 0.0 
-        self.speed_entropy: float = 0.0 
-        self.density: float = 0.0 
-        self.avg_speed: float = 0.0 
-        self.congestion_index: float = 0.0 
-        self.queue_length: int = 0 
-        self.flow_rate: float = 0.0 
-        self.occupancy: float = 0.0 
-        self.stop_count: int = 0  # Added to track number of stops 
-        self.acceleration_variance: float = 0.0  # Added to track acceleration changes 
-        self.predicted_congestion: float = 0.0  # New field for predicted congestion
- 
-@dataclass 
-class Particle: 
-    position: np.ndarray 
-    velocity: np.ndarray 
-    best_position: np.ndarray 
-    best_score: float 
-    current_score: float 
-     
-    def update_velocity(self, global_best_position: np.ndarray, w: float, c1: float, c2: float): 
-        """Update particle velocity using PSO formula with improved convergence.""" 
-        r1, r2 = random.random(), random.random() 
-        cognitive_component = c1 * r1 * (self.best_position - self.position) 
-        social_component = c2 * r2 * (global_best_position - self.position) 
-        self.velocity = w * self.velocity + cognitive_component + social_component 
-         
-    def update_position(self, bounds: List[Tuple[float, float]]): 
-        """Update particle position with improved bounds handling.""" 
-        self.position = self.position + self.velocity 
-        # Enforce bounds with smooth clamping 
-        for i, (lower, upper) in enumerate(bounds): 
-            if self.position[i] < lower: 
-                self.position[i] = lower + abs(self.velocity[i]) * 0.1 
-            elif self.position[i] > upper: 
-                self.position[i] = upper - abs(self.velocity[i]) * 0.1 
- 
-class ParticleSwarmOptimizer: 
-    def __init__(self,  
-                 num_particles: int,  
-                 num_dimensions: int,  
-                 bounds: List[Tuple[float, float]],  
-                 objective_function, 
-                 w: float = 0.7, 
-                 c1: float = 1.5, 
-                 c2: float = 1.5, 
-                 max_iterations: int = 50): 
-         
-        self.num_particles = num_particles 
-        self.num_dimensions = num_dimensions 
-        self.bounds = bounds 
-        self.objective_function = objective_function 
-        self.w = w 
-        self.c1 = c1 
-        self.c2 = c2 
-        self.max_iterations = max_iterations 
-         
-        # Initialize particles 
-        self.particles = [] 
-        self.global_best_position = None 
-        self.global_best_score = float('inf') 
-        self.initialize_swarm() 
-         
-    def initialize_swarm(self): 
-        """Initialize particle swarm with improved distribution.""" 
-        for _ in range(self.num_particles): 
-            # Random position within bounds with better distribution 
-            position = np.array([ 
-                random.uniform(low, high) for low, high in self.bounds 
-            ]) 
-             
-            # Initialize velocity with magnitude based on bounds 
-            velocity = np.array([ 
-                random.uniform(-abs(high-low)*0.1, abs(high-low)*0.1)  
-                for low, high in self.bounds 
-            ]) 
-             
-            particle = Particle( 
-                position=position.copy(), 
-                velocity=velocity, 
-                best_position=position.copy(), 
-                best_score=float('inf'), 
-                current_score=float('inf') 
-            ) 
-             
-            # Evaluate initial position 
-            score = self.objective_function(position) 
-            particle.current_score = score 
-            particle.best_score = score 
-             
-            if score < self.global_best_score: 
-                self.global_best_score = score 
-                self.global_best_position = position.copy() 
-             
-            self.particles.append(particle) 
-     
-    def optimize(self, iterations=None): 
-        """Run PSO optimization with improved convergence.""" 
-        if iterations is None: 
-            iterations = self.max_iterations 
-             
-        for _ in range(iterations): 
-            # Update each particle 
-            for particle in self.particles: 
-                # Update velocity and position 
-                particle.update_velocity(self.global_best_position, self.w, self.c1, self.c2) 
-                particle.update_position(self.bounds) 
-                 
-                # Evaluate new position 
-                score = self.objective_function(particle.position) 
-                particle.current_score = score 
-                 
-                # Update personal best with improved convergence 
-                if score < particle.best_score: 
-                    particle.best_score = score 
-                    particle.best_position = particle.position.copy() 
-                     
-                    # Update global best with improved convergence 
-                    if score < self.global_best_score: 
-                        self.global_best_score = score 
-                        self.global_best_position = particle.position.copy() 
-             
-            # Adaptive inertia weight 
-            self.w *= 0.99 
-         
-        return self.global_best_position, self.global_best_score 
-     
-    def get_current_best(self): 
-        """Return current best particle with improved accuracy.""" 
-        return self.global_best_position, self.global_best_score 
-     
-    def optimize_step(self): 
-        """Perform a single iteration of PSO with improved convergence.""" 
-        for particle in self.particles: 
-            particle.update_velocity(self.global_best_position, self.w, self.c1, self.c2) 
-            particle.update_position(self.bounds) 
-             
-            score = self.objective_function(particle.position) 
-            particle.current_score = score 
-             
-            if score < particle.best_score: 
-                particle.best_score = score 
-                particle.best_position = particle.position.copy() 
-                 
-                if score < self.global_best_score: 
-                    self.global_best_score = score 
-                    self.global_best_position = particle.position.copy() 
-         
-        # Adaptive inertia weight 
-        self.w *= 0.99 
-         
-        return self.global_best_position, self.global_best_score 
- 
-class DriverAssistance:
-    def __init__(self, vehicle_id=None):  # Change default from "115" to None
-        self.vehicle_id = vehicle_id
-        self.last_edge = None
-        self.last_speed_advice = None
-        self.last_route_advice = None
-        self.last_maintain_advice = None
-        self.updates_file = "driver_updates.txt"
-        self.min_speed_diff = 2.0
-        self.congestion_threshold = 0.65
-        self.look_ahead_distance = 100  # meters to look ahead for predictions
-        self.turn_warning_distance = 50  # meters before turn to warn
-        self.speed_change_distance = 30  # meters before needed speed change
-        self.direction_validation_threshold = 25  # degrees threshold for turn detection
-        self.last_turn_warning = None
-        
-        # Create or clear the updates file
-        Path(self.updates_file).write_text("")
-        
-    def _calculate_angle(self, edge1, edge2):
-        """Calculate accurate angle between edges using full geometry."""
-        try:
-            # Get complete edge shapes
-            shape1 = edge1.getShape()
-            shape2 = edge2.getShape()
-            
-            if len(shape1) < 2 or len(shape2) < 2:
-                return 0
-            
-            # Use last two points of first edge
-            v1_x = shape1[-1][0] - shape1[-2][0]
-            v1_y = shape1[-1][1] - shape1[-2][1]
-            
-            # Use first two points of second edge
-            v2_x = shape2[1][0] - shape2[0][0]
-            v2_y = shape2[1][1] - shape2[0][1]
-            
-            # Calculate angle using dot product and cross product
-            dot_product = v1_x * v2_x + v1_y * v2_y
-            cross_product = v1_x * v2_y - v1_y * v2_x
-            
-            angle = math.atan2(cross_product, dot_product)
-            return math.degrees(angle)
-            
-        except Exception as e:
-            logger.warning(f"Error calculating angle: {str(e)}")
-            return 0
+from .config import (
+    SUMO_CONFIG, OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
+    PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
+    CONGESTION_HISTORY_SIZE, ADAPTIVE_ROUTING_THRESHOLD, MIN_GREEN_TIME,
+    MAX_GREEN_TIME, YELLOW_TIME, ALL_RED_TIME, PSO_PARTICLES, PSO_ITERATIONS
+)
+from .models import VehicleState, TrafficMetrics
+from .optimizer import ParticleSwarmOptimizer
+from .driver_assistance import DriverAssistance
 
-    def _validate_turn_direction(self, edge1, edge2):
-        """Validate turn direction using multiple reference points."""
-        try:
-            angle = self._calculate_angle(edge1, edge2)
-            
-            # Double-check with alternative points if available
-            shape1 = edge1.getShape()
-            shape2 = edge2.getShape()
-            
-            if len(shape1) >= 3 and len(shape2) >= 3:
-                # Calculate alternative angle using different points
-                alt_angle = math.degrees(math.atan2(
-                    shape2[2][1] - shape1[-3][1],
-                    shape2[2][0] - shape1[-3][0]
-                ))
-                
-                # If angles are significantly different, use more conservative estimate
-                if abs(angle - alt_angle) > 30:
-                    angle = (angle + alt_angle) / 2
-            
-            return angle
-            
-        except Exception as e:
-            logger.warning(f"Error validating turn direction: {str(e)}")
-            return 0
-
-    def _get_turn_type(self, edge1, edge2):
-        """Get accurate turn type with validation."""
-        try:
-            # Get and validate angle
-            angle = self._validate_turn_direction(edge1, edge2)
-            
-            # Verify connection exists
-            if not edge1.getConnections(edge2):
-                logger.warning(f"No connection between edges {edge1.getID()} and {edge2.getID()}")
-                return "straight"
-            
-            # Define turn types with conservative thresholds
-            if abs(angle) < self.direction_validation_threshold:
-                return "straight"
-            elif angle >= 150:
-                return "sharp left"  # Corrected from right to left
-            elif angle <= -150:
-                return "sharp right"  # Corrected from left to right
-            elif angle >= 60:
-                return "left"  # Corrected from right to left
-            elif angle <= -60:
-                return "right"  # Corrected from left to right
-            elif angle > 0:
-                return "slight left"  # Corrected from right to left
-            else:
-                return "slight right"  # Corrected from left to right
-                
-        except Exception as e:
-            logger.warning(f"Error determining turn type: {str(e)}")
-            return "straight"
-
-    def _verify_route_connection(self, edge1_id, edge2_id):
-        """Verify that two edges are actually connected."""
-        try:
-            edge1 = self.net.getEdge(edge1_id)
-            edge2 = self.net.getEdge(edge2_id)
-            
-            # Get all outgoing connections from edge1
-            connections = edge1.getOutgoing()
-            
-            # Check if edge2 is in the outgoing connections
-            return edge2 in connections
-            
-        except Exception as e:
-            logger.warning(f"Error verifying route connection: {str(e)}")
-            return False
-
-    def _get_upcoming_turns(self, current_edge_id, route, position):
-        """Get validated upcoming turns."""
-        try:
-            current_index = route.index(current_edge_id)
-            upcoming_turns = []
-            cumulative_distance = 0
-            current_edge = self.net.getEdge(current_edge_id)
-            distance_on_edge = current_edge.getLength() - position
-            
-            # Look at next few edges
-            for i in range(current_index, min(current_index + 4, len(route) - 1)):
-                edge1_id = route[i]
-                edge2_id = route[i + 1]
-                
-                # Verify connection exists
-                if not self._verify_route_connection(edge1_id, edge2_id):
-                    continue
-                
-                edge1 = self.net.getEdge(edge1_id)
-                edge2 = self.net.getEdge(edge2_id)
-                
-                if i == current_index:
-                    cumulative_distance = distance_on_edge
-                else:
-                    cumulative_distance += edge1.getLength()
-                
-                if cumulative_distance > self.look_ahead_distance:
-                    break
-                
-                turn_type = self._get_turn_type(edge1, edge2)
-                
-                # Only include non-straight turns that have been validated
-                if turn_type != "straight":
-                    # Double check the turn direction
-                    angle = self._validate_turn_direction(edge1, edge2)
-                    if abs(angle) >= self.direction_validation_threshold:
-                        upcoming_turns.append({
-                            'distance': cumulative_distance,
-                            'type': turn_type,
-                            'edge_id': edge2_id,
-                            'angle': angle  # Store angle for debugging
-                        })
-            
-            return upcoming_turns
-            
-        except Exception as e:
-            logger.warning(f"Error predicting turns: {str(e)}")
-            return []
-
-    def _predict_speed_changes(self, current_edge_id, route, traffic_metrics, current_speed):
-        """Predict needed speed changes based on upcoming road conditions."""
-        try:
-            current_index = route.index(current_edge_id)
-            speed_changes = []
-            cumulative_distance = 0
-            
-            for i in range(current_index, min(current_index + 3, len(route) - 1)):
-                edge_id = route[i]
-                edge = self.net.getEdge(edge_id)
-                
-                if i == current_index:
-                    cumulative_distance = edge.getLength() - current_speed
-                else:
-                    cumulative_distance += edge.getLength()
-                
-                if edge_id in traffic_metrics:
-                    metrics = traffic_metrics[edge_id]
-                    optimal_speed = self._calculate_optimal_speed(edge, metrics, current_speed)
-                    
-                    if optimal_speed is not None and abs(optimal_speed - current_speed) >= self.min_speed_diff:
-                        speed_changes.append({
-                            'distance': cumulative_distance,
-                            'target_speed': optimal_speed,
-                            'reason': self._get_speed_change_reason(metrics, edge)
-                        })
-            
-            return speed_changes
-            
-        except Exception as e:
-            logger.warning(f"Error predicting speed changes: {str(e)}")
-            return []
-
-    def _get_speed_change_reason(self, metrics, edge):
-        """Get the reason for speed change."""
-        if metrics.congestion_index > 0.8:
-            return "heavy traffic ahead"
-        elif metrics.queue_length > 3:
-            return "queue ahead"
-        elif metrics.predicted_congestion > 0.7:
-            return "expected congestion"
-        elif edge.getSpeed() < edge.getSpeed():
-            return "speed limit change"
-        return "traffic flow"
-
-    def update_driver(self, net, vehicle_states, traffic_metrics):
-        """Generate validated driver updates."""
-        try:
-            if self.vehicle_id not in vehicle_states:
-                return
-            
-            self.net = net
-            state = vehicle_states[self.vehicle_id]
-            current_edge_id = state.current_edge
-            
-            if current_edge_id.startswith(':'):
-                return
-            
-            updates = []
-            current_time = datetime.now().strftime("%H:%M:%S")
-            
-            # Get and validate upcoming turns
-            upcoming_turns = self._get_upcoming_turns(
-                current_edge_id, 
-                state.route, 
-                state.lane_position
-            )
-            
-            # Process validated turn warnings
-            for turn in upcoming_turns:
-                if turn['distance'] <= self.turn_warning_distance:
-                    turn_msg = (f"Prepare to turn {turn['type']} in {turn['distance']:.0f}m ")
-                   
-                    
-                    # Avoid duplicate warnings and validate turn type
-                    if (turn_msg != self.last_turn_warning and 
-                        abs(turn['angle']) >= self.direction_validation_threshold):
-                        updates.append(turn_msg)
-                        self.last_turn_warning = turn_msg
-            
-            # Process speed changes
-            speed_changes = self._predict_speed_changes(
-                current_edge_id,
-                state.route,
-                traffic_metrics,
-                state.speed
-            )
-            
-            # Check if speed should be maintained
-            if not speed_changes and state.speed > 0:
-                maintain_msg = f"Maintain current speed of {state.speed:.1f} m/s"
-              
-                if maintain_msg != self.last_maintain_advice:
-                    updates.append(maintain_msg)
-                    self.last_maintain_advice = maintain_msg
-            
-            # Write valid updates
-            if updates:
-                with open(self.updates_file, "a") as f:
-                    f.write(f"\n[{current_time}] Updates:\n")
-                    for update in updates:
-                        f.write(f"- {update}\n")
-            
-        except Exception as e:
-            logger.error(f"Error updating driver assistance: {str(e)}")
-
-    def _calculate_optimal_speed(self, edge, metrics, current_speed):
-        """Calculate optimal speed based on conditions."""
-        try:
-            speed_limit = edge.getSpeed()
-            
-            # Factor in multiple conditions
-            if metrics.congestion_index > 0.8:
-                return min(speed_limit, max(5.0, current_speed * 0.7))
-            elif metrics.queue_length > 3:
-                return min(speed_limit, max(8.0, current_speed * 0.8))
-            elif metrics.predicted_congestion > 0.7:
-                return min(speed_limit, max(10.0, current_speed * 0.9))
-            elif metrics.avg_speed > speed_limit * 0.9:
-                return speed_limit
-            
-            # If conditions are good, maintain current speed if it's reasonable
-            if current_speed <= speed_limit and current_speed >= speed_limit * 0.8:
-                return current_speed
-                
-            return None
-            
-        except Exception as e:
-            logger.warning(f"Error calculating optimal speed: {str(e)}")
-            return None
+logger = logging.getLogger(__name__)
 
 class AdvancedTrafficManager: 
     def __init__(self): 
-        self.sumo_config = { 
-            'gui': True, 
-            'config_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.sumocfg', 
-            'net_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.net.xml', 
-            'route_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.rou.xml',  
-        } 
+        self.sumo_config = SUMO_CONFIG
          
         # System parameters with improved thresholds 
-        self.OPTIMIZATION_INTERVAL = 30  # Reduced to 30 seconds for more frequent updates 
-        self.CONGESTION_THRESHOLDS = { 
-            'free_flow': 0.15,    
-            'moderate': 0.35,    
-            'heavy': 0.65,         
-            'severe': 0.8,        
-            'gridlock': 0.9        # Reduced from 0.95 
-        } 
+        self.OPTIMIZATION_INTERVAL = OPTIMIZATION_INTERVAL
+        self.CONGESTION_THRESHOLDS = CONGESTION_THRESHOLDS
          
         # Speed limits with improved values 
-        self.SPEED_LIMITS = { 
-            'urban': 14.0,         # Increased from 13.89 
-            'arterial': 17.0,      # Increased from 16.67 
-            'highway': 28.0,       # Increased from 27.78 
-            'residential': 8.5,    # Increased from 8.33 
-            'bus_lane': 14.0       # Increased from 13.89 
-        } 
+        self.SPEED_LIMITS = SPEED_LIMITS
          
         # PCU values with improved accuracy 
-        self.PCU_VALUES = { 
-            'passenger': 1.0, 
-            'truck': 2.3,          # Reduced from 2.5 
-            'trailer': 3.2,        # Reduced from 3.5 
-            'bus': 2.2,            # Increased from 2.0 
-            'motorcycle': 0.4,     # Reduced from 0.5 
-            'bicycle': 0.2 
-        } 
+        self.PCU_VALUES = PCU_VALUES
          
         # Priority weights with improved balance 
-        self.PRIORITY_WEIGHTS = { 
-            'bus': 3.5,            # Increased from 3.0 
-            'truck': 2.2,          # Increased from 2.0 
-            'passenger': 1.0, 
-            'motorcycle': 0.8,     # Reduced from 1.0 
-            'bicycle': 0.8         # Increased from 1.0 
-        } 
+        self.PRIORITY_WEIGHTS = PRIORITY_WEIGHTS
          
         # Traffic management parameters with improved values 
-        self.MAX_REROUTE_ATTEMPTS = 4  # Increased from 3 
-        self.MIN_REROUTE_INTERVAL = 180  # Reduced from 300 
-        self.CONGESTION_HISTORY_SIZE = 40  # Increased   from 30 
-        self.ADAPTIVE_ROUTING_THRESHOLD = 0.65  # Reduced from 0.7 
+        self.MAX_REROUTE_ATTEMPTS = MAX_REROUTE_ATTEMPTS
+        self.MIN_REROUTE_INTERVAL = MIN_REROUTE_INTERVAL
+        self.CONGESTION_HISTORY_SIZE = CONGESTION_HISTORY_SIZE
+        self.ADAPTIVE_ROUTING_THRESHOLD = ADAPTIVE_ROUTING_THRESHOLD
          
         # Signal timing parameters with improved values 
-        self.MIN_GREEN_TIME = 20   # Increased from 15 
-        self.MAX_GREEN_TIME = 100  # Increased from 90 
-        self.YELLOW_TIME = 4       # Increased from 3 
-        self.ALL_RED_TIME = 3      # Increased from 2 
+        self.MIN_GREEN_TIME = MIN_GREEN_TIME
+        self.MAX_GREEN_TIME = MAX_GREEN_TIME
+        self.YELLOW_TIME = YELLOW_TIME
+        self.ALL_RED_TIME = ALL_RED_TIME
          
         # PSO parameters with improved values 
-        self.PSO_PARTICLES = 15    # Increased from 10 
-        self.PSO_ITERATIONS = 7    # Increased from 5 
+        self.PSO_PARTICLES = PSO_PARTICLES
+        self.PSO_ITERATIONS = PSO_ITERATIONS
          
         # Initialize data structures 
         self.network_graph = nx.DiGraph() 
@@ -607,7 +97,7 @@ class AdvancedTrafficManager:
         try: 
             # Verify file existence 
             for key, path in self.sumo_config.items(): 
-                if not os.path.exists(path): 
+                if key != 'gui' and not os.path.exists(path): 
                     raise FileNotFoundError(f"Required file not found: {path}") 
              
             # Only build network graph, don't start SUMO yet
@@ -664,7 +154,7 @@ class AdvancedTrafficManager:
         except Exception as e: 
             logger.error(f"Network graph building failed: {str(e)}") 
             raise 
-     
+      
     def _calculate_edge_curvature(self, edge): 
         """Calculate edge curvature for improved routing.""" 
         try: 
@@ -759,7 +249,7 @@ class AdvancedTrafficManager:
         )
         
         logger.info("PSO for speed control optimization initialized")
-
+ 
     def _initialize_route_pso(self):
         """Initialize PSO for route optimization."""
         bounds = [
@@ -781,7 +271,7 @@ class AdvancedTrafficManager:
         )
         
         logger.info("PSO for route optimization initialized")
-
+ 
     def _predict_congestion(self, edge_id: str) -> float:
         """Predict future congestion using historical data, current metrics, and traffic patterns."""
         try:
@@ -791,7 +281,7 @@ class AdvancedTrafficManager:
             
             if not history:
                 return metrics.congestion_index
-
+ 
             # Get current metrics with safety checks
             current_density = metrics.density if hasattr(metrics, 'density') else 0
             current_speed = metrics.avg_speed if hasattr(metrics, 'avg_speed') else edge.getSpeed()
@@ -805,12 +295,12 @@ class AdvancedTrafficManager:
                 weights = [math.exp(-i * 0.5) for i in range(5)]  # Exponential decay weights
                 weight_sum = sum(weights)
                 historical_trend = sum(h * w for h, w in zip(history[-5:], weights)) / weight_sum
-
+ 
             # Calculate rate of change in congestion
             congestion_rate = 0.0
             if len(history) >= 3:
                 congestion_rate = (history[-1] - history[-3]) / 3
-
+ 
             # Calculate normalized metrics
             max_density = 140  # vehicles per km per lane
             density_factor = min(1.0, current_density / (max_density * len(edge.getLanes())))
@@ -822,7 +312,7 @@ class AdvancedTrafficManager:
             queue_factor = min(1.0, current_queue / max(1, queue_capacity))
             
             occupancy_factor = min(1.0, current_occupancy / 100)
-
+ 
             # Weighted combination of all factors (removed time-based factors)
             prediction = (
                 0.25 * metrics.congestion_index +     # Current congestion (highest weight)
@@ -833,7 +323,7 @@ class AdvancedTrafficManager:
                 0.10 * occupancy_factor +             # Current occupancy
                 0.05 * max(0, congestion_rate)        # Rate of change (trend)
             )
-
+ 
             # Apply downstream congestion influence
             try:
                 downstream_edges = [conn.getTo().getID() for conn in edge.getOutgoing()]
@@ -847,12 +337,12 @@ class AdvancedTrafficManager:
                     prediction = 0.8 * prediction + 0.2 * downstream_congestion
             except:
                 pass
-
+ 
             # Ensure prediction stays within bounds
             prediction = min(0.95, max(0.1, prediction))
             
             return prediction
-
+ 
         except Exception as e:
             logger.warning(f"Congestion prediction failed for edge {edge_id}: {str(e)}")
             return 0.5  # Return moderate congestion as fallback
@@ -999,7 +489,7 @@ class AdvancedTrafficManager:
                 # Improved congestion index calculation 
                 capacity = self.network_graph[edge.getFromNode().getID()][edge.getToNode().getID()]['capacity'] 
                 metrics.congestion_index = min(1.0, metrics.flow_rate / capacity if capacity > 0 else 1.0) 
-
+ 
                 # Predict future congestion
                 metrics.predicted_congestion = self._predict_congestion(edge_id)
  
@@ -1037,7 +527,7 @@ class AdvancedTrafficManager:
             self._apply_signal_optimization(best_params) 
             
             logger.info(f"Signal optimization completed with score: {best_score:.2f}") 
-            
+             
         except Exception as e: 
             logger.error(f"Traffic signal optimization failed: {str(e)}")
  
@@ -1150,7 +640,7 @@ class AdvancedTrafficManager:
             if not self.simulation_running or not traci.vehicle.getIDList():
                 logger.debug("Skipping speed optimization - simulation not running or no vehicles")
                 return
-
+ 
             if self.speed_control_pso is None: 
                 self._initialize_speed_control_pso() 
             
@@ -1201,7 +691,7 @@ class AdvancedTrafficManager:
             self._apply_speed_optimization(edges_to_optimize, best_params) 
             
             logger.info(f"Speed optimization completed for {len(edges_to_optimize)} edges with score: {best_score:.2f}") 
-            
+             
         except Exception as e: 
             logger.error(f"Speed limit optimization failed: {str(e)}")
  
@@ -1264,7 +754,7 @@ class AdvancedTrafficManager:
                 except Exception as e: 
                     logger.warning(f"Failed to apply speed limit to edge {edge_id}: {str(e)}") 
                     continue 
-                     
+                      
         except Exception as e: 
             logger.error(f"Failed to apply speed optimization: {str(e)}")
  
@@ -1315,7 +805,7 @@ class AdvancedTrafficManager:
             if not self.simulation_running or not traci.vehicle.getIDList():
                 logger.debug("Skipping route optimization - simulation not running or no vehicles")
                 return
-
+ 
             if self.route_pso is None: 
                 self._initialize_route_pso() 
              
@@ -1432,7 +922,7 @@ class AdvancedTrafficManager:
                 ) * hist_factor * congestion_multiplier  # Apply congestion multiplier
                  
                 edge_weights[edge_id] = max(0.1, edge_weight) 
-
+ 
             # Update edge travel times in SUMO
             for edge_id, weight in edge_weights.items():
                 try:
@@ -1476,7 +966,7 @@ class AdvancedTrafficManager:
                 except Exception as e: 
                     logger.warning(f"Failed to reroute vehicle {vehicle_id}: {str(e)}") 
                     continue 
-                     
+                      
         except Exception as e: 
             logger.error(f"Adaptive routing application failed: {str(e)}")
  
@@ -1678,7 +1168,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Signal timing evaluation failed: {str(e)}")
             return float('inf')
-
+ 
     def _get_signal_distance(self, tls1_id: str, tls2_id: str) -> float:
         """Calculate distance between two traffic signals."""
         try:
@@ -1687,7 +1177,7 @@ class AdvancedTrafficManager:
             return np.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
         except:
             return float('inf')
-
+ 
     def _evaluate_speed_control(self, params):
         """Evaluate speed control parameters using actual TraCI metrics."""
         try:
@@ -1743,7 +1233,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Speed control evaluation failed: {str(e)}")
             return float('inf')
-
+ 
     def _evaluate_routing_strategy(self, params):
         """Evaluate routing strategy parameters using actual TraCI metrics."""
         try:
@@ -1805,7 +1295,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Routing strategy evaluation failed: {str(e)}")
             return float('inf')
-
+ 
     def calculate_shortest_route(self, from_edge: str, to_edge: str) -> List[str]:
         """Calculate shortest route between two edges using NetworkX and validate for SUMO."""
         try:
@@ -1819,7 +1309,7 @@ class AdvancedTrafficManager:
             # Check if edges allow passenger vehicles
             if not self._is_edge_allowed(from_edge_obj) or not self._is_edge_allowed(to_edge_obj):
                 raise ValueError(f"Edges {from_edge} or {to_edge} do not allow passenger vehicles")
-
+ 
             # Get nodes corresponding to edges
             from_node = from_edge_obj.getToNode().getID()
             to_node = to_edge_obj.getFromNode().getID()
@@ -1869,7 +1359,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Route calculation failed: {str(e)}")
             raise
-
+ 
     def _is_edge_allowed(self, edge) -> bool:
         """Check if edge allows passenger vehicles."""
         try:
@@ -1888,7 +1378,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.warning(f"Error checking edge permissions: {str(e)}")
             return False
-
+ 
     def _calculate_edge_weight(self, u, v, edge_data) -> float:
         """Calculate edge weight considering various factors."""
         try:
@@ -1919,7 +1409,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.warning(f"Error calculating edge weight: {str(e)}")
             return float('inf')
-
+ 
     def _validate_route(self, edges: List[str]) -> bool:
         """Validate complete route using SUMO's route check."""
         try:
@@ -1951,7 +1441,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.warning(f"Route validation failed: {str(e)}")
             return False
-
+ 
     def _add_route_to_file(self, vehicle_id: str, edges: List[str]):
         """Add new route to the route file at the beginning."""
         try:
@@ -2035,7 +1525,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Failed to update route file: {str(e)}")
             raise
-
+ 
     def add_vehicle_to_simulation(self, from_edge: str, to_edge: str) -> Dict[str, Any]:
         try:
             # Verify edge connection before calculating route
@@ -2066,7 +1556,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Failed to add vehicle: {str(e)}")
             raise
-
+ 
     def _verify_edge_connection(self, from_edge: str, to_edge: str) -> bool:
         """Verify that there exists a valid path between two edges."""
         try:
@@ -2079,7 +1569,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Error verifying edge connection: {str(e)}")
             return False
-
+ 
     def get_vehicle_updates(self, vehicle_id: str) -> Dict[str, Any]:
         """Get updates for a specific vehicle."""
         try:
@@ -2101,7 +1591,7 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Error getting vehicle updates: {str(e)}")
             return {"status": "error", "message": str(e)}
-
+ 
     def start_simulation(self):
         """Start SUMO simulation with GUI."""
         if self.simulation_running:
@@ -2153,7 +1643,7 @@ class AdvancedTrafficManager:
                 except:
                     pass
             return {"status": "error", "message": str(e)}
-
+ 
     def get_driver_updates(self, vehicle_id: str) -> List[str]:
         """Get the latest driver updates for a specific vehicle."""
         try:
@@ -2188,140 +1678,3 @@ class AdvancedTrafficManager:
         except Exception as e:
             logger.error(f"Error getting driver updates: {str(e)}")
             return []
-
-# Create Flask app and traffic manager instance
-app = Flask(__name__)
-CORS(app)
-traffic_manager = AdvancedTrafficManager()
-
-@app.route('/process', methods=['POST'])
-def process():
-    """Add a new vehicle route without starting simulation."""
-    try:
-        data = request.get_json()
-        initial_location = data.get('initial_location')
-        destination = data.get('destination')
-        
-        logger.info(f"Received route data - From: {initial_location} To: {destination}")
-        
-        # Add vehicle to route file
-        result = traffic_manager.add_vehicle_to_simulation(
-            from_edge=initial_location,
-            to_edge=destination
-        )
-        
-        return jsonify({
-            "status": "success",
-            "message": "Vehicle route added successfully",
-            "data": {
-                "from": initial_location,
-                "to": destination,
-                "vehicle_id": result["vehicle_id"],
-                "route_length": result["route_length"],
-                "route": result["route"]
-            }
-        })
-    except ValueError as ve:
-        logger.error(f"Invalid route data: {ve}")
-        return jsonify({
-            "status": "error",
-            "message": str(ve)
-        }), 400
-    except Exception as e:
-        logger.error(f"Error processing route data: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-@app.route('/start', methods=['POST'])
-def start_simulation():
-    """Start the SUMO simulation with GUI."""
-    try:
-        result = traffic_manager.start_simulation()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Failed to start simulation: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-@app.route('/updates/<vehicle_id>', methods=['GET'])
-def get_updates(vehicle_id):
-    """Get the latest updates for a specific vehicle."""
-    try:
-        # Read all updates from the file
-        latest_updates = []
-        if os.path.exists(traffic_manager.updates_file):
-            with open(traffic_manager.updates_file, 'r') as f:
-                lines = f.readlines()
-                current_block = []
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith('['):  # New timestamp block
-                        if current_block:
-                            latest_updates.extend(current_block)
-                        current_block = []
-                    elif line.startswith('-'):
-                        current_block.append(line[2:])  # Remove "- " prefix
-                
-                # Add the last block
-                if current_block:
-                    latest_updates.extend(current_block)
-
-        # Check if vehicle has completed its journey by verifying it has reached its destination
-        is_completed = False
-        try:
-            # Get vehicle's current state
-            vehicle_state = traffic_manager.vehicle_states.get(vehicle_id)
-            if vehicle_state:
-                # Check if vehicle is still in simulation
-                try:
-                    current_edge = traci.vehicle.getRoadID(vehicle_id)
-                    # Check if vehicle has reached its destination
-                    is_completed = current_edge == vehicle_state.destination
-                except traci.exceptions.TraCIException:
-                    # If vehicle is not found in simulation, check if it reached destination
-                    arrived_vehicles = traci.simulation.getArrivedIDList()
-                    is_completed = vehicle_id in arrived_vehicles
-            else:
-                # If vehicle state is not found, check arrived vehicles
-                arrived_vehicles = traci.simulation.getArrivedIDList()
-                is_completed = vehicle_id in arrived_vehicles
-
-            if is_completed and not any("Journey completed!" in update for update in latest_updates):
-                latest_updates.append("Journey completed!")
-        except Exception as e:
-            logger.warning(f"Error checking vehicle completion: {str(e)}")
-            is_completed = False
-
-        return jsonify({
-            "status": "success",
-            "driver_updates": latest_updates,
-            "vehicle_state": {
-                "status": "completed" if is_completed else "active",
-                "is_arrived": is_completed
-            }
-        })
-    except Exception as e:
-        logger.error(f"Failed to get updates: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-@app.route('/', methods=['GET'])
-def root():
-    return jsonify({"message": "Traffic Optimization API is running"})
-
-if __name__ == "__main__":
-    try:
-        traffic_manager = AdvancedTrafficManager()
-        
-        app.run(debug=True)
-    except Exception as e:
-        logger.critical(f"Fatal error: {str(e)}")
-        import traceback
-        logger.critical(traceback.format_exc())
-        sys.exit(1)
