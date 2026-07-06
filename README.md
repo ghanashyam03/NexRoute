@@ -36,7 +36,7 @@ graph TD
     I -->|Dynamic Signal Control| F
     I -->|Variable Speed Limits| F
     I -->|Proactive Vehicle Rerouting| F
-    E -->|实时 updates| J(Driver Assistance System)
+    E -->|Realtime updates| J(Driver Assistance System)
     J -->|File Write| K(driver_updates.txt)
     A -->|GET /updates/vehicle_id| B
     B -->|Parse Updates| K
@@ -54,7 +54,7 @@ graph TD
 ## 🧠 Core Backend Subsystems & Algorithms
 
 ### 1. Particle Swarm Optimization (PSO) Engine (`optimizer.py`)
-All control subsystems leverage a highly convergent Particle Swarm Optimization (PSO) algorithm. PSO is a meta-heuristic optimization method inspired by bird flocking. In NexRoute, the optimizer minimizes complex, non-differentiable traffic performance objective functions.
+All control subsystems leverage a highly convergent Particle Swarm Optimization (PSO) algorithm. In NexRoute, the optimizer minimizes complex, non-differentiable traffic performance objective functions.
 
 #### Mathematical Formulation:
 For each particle $i$ in the swarm:
@@ -80,8 +80,8 @@ Intersections are the primary source of delays. NexRoute uses PSO to adjust traf
 - **Objective Function**: The objective function evaluates candidate signal timings by calculating a weighted penalty score across all controlled lanes.
   $$\text{Score}_{\text{signal}} = \sum_{\text{phases}} \left( \frac{\text{Queue}}{\text{Lanes}} \cdot w_q \cdot 2.0 + \frac{\text{WaitingTime}}{\text{FlowRate}} \cdot w_d \cdot 1.5 + \text{StoppedVehicles} \cdot 1.2 + \text{Delays} \cdot 1.3 + (1 - \text{Efficiency}) \cdot 1.5 \right)$$
 - **Phase Duration Calculation**: The optimized base green time and weights are applied to compute the phase duration:
-  $$D_{\text{phase}} = D_{\text{base\_green}} + \frac{\text{FlowRate}}{500} \cdot w_{\text{demand}} + \text{QueueLength} \cdot w_{\text{queue}} \cdot 2.5 + \text{StopCount} \cdot 2.0 + \text{MaxPredictedCongestion} \cdot 20.0$$
-  *Bounds constraints*: Green times are capped between $MIN\_GREEN\_TIME$ (20s) and $MAX\_GREEN\_TIME$ (100s).
+  $$D_{\text{phase}} = D_{\text{green}} + \frac{\text{Flow}}{500} \cdot w_{\text{demand}} + \text{Queue} \cdot w_{\text{queue}} \cdot 2.5 + \text{Stops} \cdot 2.0 + C_{\text{pred}} \cdot 20.0$$
+  *Bounds constraints*: Green times are capped between `MIN_GREEN_TIME` (20s) and `MAX_GREEN_TIME` (100s).
 - **Proactive Safety Measures**: Under severe predicted congestion ($> 0.65$), the system automatically extends yellow phases (up to 1.5x) and injects all-red phases to clear intersection gridlocks.
 
 ---
@@ -91,10 +91,10 @@ To prevent "shockwaves" (propagating stop-and-go waves caused by sudden braking)
 
 - **Objective Function**: Minimizes density, queue lengths, and speed deviations relative to the design speed limits.
 - **Dynamic Speed Clamping**:
-  $$V_{\text{new\_limit}} = \max\left(3.0, V_{\text{normal}} \cdot \left[ 1.0 - \left( C_{\text{predicted}} \cdot 0.5 + F_{\text{queue}} \cdot 0.4 + F_{\text{density}} \cdot 0.3 + F_{\text{stop}} \cdot 0.2 \right) \right]\right)$$
-  Where $C_{\text{predicted}}$ is the predicted congestion, and $F$ represents normalized factors.
+  $$V_{\text{limit}} = \max\left(3.0, V_{\text{normal}} \cdot \left[ 1.0 - \left( C_{\text{pred}} \cdot 0.5 + F_{\text{queue}} \cdot 0.4 + F_{\text{density}} \cdot 0.3 + F_{\text{stop}} \cdot 0.2 \right] \right]\right)$$
+  Where $C_{\text{pred}}$ is the predicted congestion, $V_{\text{normal}}$ is the edge's default speed limit, and $F$ represents normalized factors.
 - **Speed Harmonization**: Within a congested edge, trailing vehicles are smoothed to follow lead vehicle speeds with safety margins:
-  $$V_{\text{target}} = \min(V_{\text{new\_limit}}, V_{\text{lead}} \cdot \text{gap\_factor})$$
+  $$V_{\text{target}} = \min(V_{\text{limit}}, V_{\text{lead}} \cdot \text{gap})$$
   This reduces acceleration variance, saving fuel and improving safety.
 
 ---
@@ -103,12 +103,12 @@ To prevent "shockwaves" (propagating stop-and-go waves caused by sudden braking)
 Traditional routing utilizes static free-flow travel times. NexRoute utilizes real-time and predicted congestion to compute dynamic weights for NetworkX and TraCI routing.
 
 - **Dynamic Weight Function**:
-  $$W_{\text{edge}} = \left( T_{\text{travel\_current}} \cdot w_t + Q_{\text{delay\_est}} + P_{\text{congestion\_predicted}} + \text{Stops} \cdot 3.0 \right) \cdot F_{\text{historical\_decay}} \cdot M_{\text{congestion\_multiplier}}$$
+  $$W_{\text{edge}} = \left( T_{\text{travel}} \cdot w_t + Q_{\text{delay}} + P_{\text{congestion}} + \text{Stops} \cdot 3.0 \right) \cdot F_{\text{history}} \cdot M_{\text{mult}}$$
   Where:
-  - $T_{\text{travel\_current}} = \frac{\text{Edge Length}}{\text{Mean Speed}}$
-  - $Q_{\text{delay\_est}} = \text{QueueLength} \cdot 3.0 \cdot w_q \cdot (1.2^{\text{QueueLength}})$ (exponential queue penalty).
-  - $P_{\text{congestion\_predicted}} = C_{\text{predicted}}^2 \cdot \text{Edge Length} \cdot w_p$.
-  - $M_{\text{congestion\_multiplier}} = 5.0$ if the edge's predicted congestion exceeds the adaptive routing threshold ($0.65$).
+  - $T_{\text{travel}} = \frac{\text{Edge Length}}{\text{Mean Speed}}$
+  - $Q_{\text{delay}} = \text{QueueLength} \cdot 3.0 \cdot w_q \cdot (1.2^{\text{QueueLength}})$ (exponential queue penalty).
+  - $P_{\text{congestion}} = C_{\text{pred}}^2 \cdot \text{Edge Length} \cdot w_p$.
+  - $M_{\text{mult}} = 5.0$ if the edge's predicted congestion exceeds the adaptive routing threshold ($0.65$).
 - **Routing Optimization**: PSO optimizes the weights ($w_t, w_q, w_p, w_h$) globally to minimize system travel time loss and waiting times. Candidate vehicles are dynamically rerouted via Dijkstra's shortest path before encountering the bottleneck.
 
 ---
@@ -116,14 +116,14 @@ Traditional routing utilizes static free-flow travel times. NexRoute utilizes re
 ### 5. Congestion Prediction Model (`traffic_manager.py`)
 Predictive routing requires knowing where congestion *will* be, not just where it is. NexRoute computes a prediction value between $0.1$ and $0.95$ using historical and spatial features:
 
-$$C_{\text{predicted}} = 0.25 \cdot C_{\text{current}} + 0.20 \cdot H_{\text{EMA}} + 0.15 \cdot D_{\text{norm}} + 0.15 \cdot Q_{\text{norm}} + 0.10 \cdot S_{\text{factor}} + 0.10 \cdot O_{\text{norm}} + 0.05 \cdot R_{\text{change}}$$
+$$C_{\text{pred}} = 0.25 \cdot C_{\text{curr}} + 0.20 \cdot H_{\text{EMA}} + 0.15 \cdot D_{\text{norm}} + 0.15 \cdot Q_{\text{norm}} + 0.10 \cdot S_{\text{factor}} + 0.10 \cdot O_{\text{norm}} + 0.05 \cdot R_{\text{change}}$$
 
 Where:
-- $C_{\text{current}}$: Current congestion index (flow rate / capacity).
+- $C_{\text{curr}}$: Current congestion index (flow rate / capacity).
 - $H_{\text{EMA}}$: Exponential moving average of congestion history (size = 40).
 - $D_{\text{norm}}$: Normalized density (Passenger Car Units / km / lane).
 - $Q_{\text{norm}}$: Normalized queue factor.
-- $S_{\text{factor}}$: Speed drop factor ($1 - \frac{\text{average speed}}{\text{speed limit}}$).
+- $S_{\text{factor}}$: Speed drop factor ($1 - \frac{V_{\text{avg}}}{V_{\text{limit}}}$).
 - $O_{\text{norm}}$: Normalized occupancy percentage.
 - $R_{\text{change}}$: Rate of congestion change over recent steps.
 - **Downstream Propagation**: The prediction is blended with downstream edges ($80\%$ local, $20\%$ downstream average) to capture queue spillback dynamics.
@@ -134,8 +134,8 @@ Where:
 Generates localized, geometry-aware recommendations for individual vehicles.
 
 - **Vector-Based Turn Detection**: Rather than relying on simple connectivity maps, the system calculates the geometric angle between consecutive edges in the vehicle's route:
-  $$v_1 = \vec{p}_{\text{end\_edge1}} - \vec{p}_{\text{start\_edge1}}$$
-  $$v_2 = \vec{p}_{\text{end\_edge2}} - \vec{p}_{\text{start\_edge2}}$$
+  $$v_1 = \vec{p}_{\text{end1}} - \vec{p}_{\text{start1}}$$
+  $$v_2 = \vec{p}_{\text{end2}} - \vec{p}_{\text{start2}}$$
   $$\theta = \text{atan2}(v_1 \times v_2, v_1 \cdot v_2)$$
   Angles are classified into turn types:
   - $|\theta| < 25^\circ$: Straight
@@ -144,7 +144,7 @@ Generates localized, geometry-aware recommendations for individual vehicles.
   - $\theta \ge 150^\circ$: Sharp Left
   - (Symmetric negative angles map to Right, Slight Right, and Sharp Right turns).
 - **Proactive Speed Guidance**: Evaluates optimal speeds using queue lengths and congestion indices of the upcoming 3 edges:
-  $$V_{\text{advice}} = \min(V_{\text{speed\_limit}}, \text{congestion\_clamped\_speed})$$
+  $$V_{\text{advice}} = \min(V_{\text{limit}}, V_{\text{congest}})$$
 - Output updates are written to `driver_updates.txt` in real time.
 
 ---
