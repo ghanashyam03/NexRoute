@@ -15,11 +15,12 @@ import traci
 import sumolib
 
 from .config import (
-    SUMO_CONFIG, OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
+    OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
     CONGESTION_HISTORY_SIZE, ADAPTIVE_ROUTING_THRESHOLD, MIN_GREEN_TIME,
     MAX_GREEN_TIME, YELLOW_TIME, ALL_RED_TIME, PSO_PARTICLES, PSO_ITERATIONS
 )
+from .scenario_loader import ScenarioConfig, load_scenario
 from .models import VehicleState, TrafficMetrics
 from .optimizer import ParticleSwarmOptimizer
 from .driver_assistance import DriverAssistance
@@ -27,8 +28,13 @@ from .driver_assistance import DriverAssistance
 logger = logging.getLogger(__name__)
 
 class AdvancedTrafficManager: 
-    def __init__(self): 
-        self.sumo_config = SUMO_CONFIG
+    def __init__(self, scenario_config: Optional[ScenarioConfig] = None): 
+        if scenario_config is None:
+            scenario_config = load_scenario('default')
+
+        self.scenario_config = scenario_config
+        self.sumo_config = scenario_config.sumo_config
+
          
         # System parameters with improved thresholds 
         self.OPTIMIZATION_INTERVAL = OPTIMIZATION_INTERVAL
