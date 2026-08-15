@@ -3,3 +3,5 @@ Flask-Cors>=3.0.0
 numpy
 networkx
 scipy
+PyYAML>=6.0
+pytest>=7.0.0
