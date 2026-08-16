@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import traci
 
+from .scenario_loader import load_scenario
 from .traffic_manager import AdvancedTrafficManager
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,8 @@ logger = logging.getLogger(__name__)
 # Create Flask app and traffic manager instance
 app = Flask(__name__)
 CORS(app)
-traffic_manager = AdvancedTrafficManager()
+scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
+traffic_manager = AdvancedTrafficManager(scenario_config=scenario_config)
 
 @app.route('/process', methods=['POST'])
 def process():

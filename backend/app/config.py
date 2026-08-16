@@ -1,12 +1,5 @@
-# Configuration parameters for Traffic Management System
+# Default Configuration parameters for Traffic Management System
 
-SUMO_CONFIG = { 
-    'gui': True, 
-    'config_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.sumocfg', 
-    'net_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.net.xml', 
-    'route_file': r'C:\Users\ghana\OneDrive\Desktop\greenwave\broh.rou.xml',  
-} 
- 
 OPTIMIZATION_INTERVAL = 30 
 CONGESTION_THRESHOLDS = { 
     'free_flow': 0.15,    
