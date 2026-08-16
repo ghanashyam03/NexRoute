@@ -15,12 +15,11 @@ import traci
 import sumolib
 
 from .config import (
-    OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
+    SUMO_CONFIG, OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
     CONGESTION_HISTORY_SIZE, ADAPTIVE_ROUTING_THRESHOLD, MIN_GREEN_TIME,
     MAX_GREEN_TIME, YELLOW_TIME, ALL_RED_TIME, PSO_PARTICLES, PSO_ITERATIONS
 )
-from .scenario_loader import ScenarioConfig, load_scenario
 from .models import VehicleState, TrafficMetrics
 from .optimizer import ParticleSwarmOptimizer
 from .driver_assistance import DriverAssistance
@@ -28,40 +27,37 @@ from .driver_assistance import DriverAssistance
 logger = logging.getLogger(__name__)
 
 class AdvancedTrafficManager: 
-    def __init__(self, scenario_config: Optional[ScenarioConfig] = None): 
-        if scenario_config is None:
-            scenario_config = load_scenario("default")
-        self.scenario_config = scenario_config
-        self.sumo_config = scenario_config.sumo_config
+    def __init__(self): 
+        self.sumo_config = SUMO_CONFIG
          
-        # System parameters with scenario overrides already merged by scenario_loader
-        self.OPTIMIZATION_INTERVAL = scenario_config.OPTIMIZATION_INTERVAL
-        self.CONGESTION_THRESHOLDS = scenario_config.CONGESTION_THRESHOLDS
+        # System parameters with improved thresholds 
+        self.OPTIMIZATION_INTERVAL = OPTIMIZATION_INTERVAL
+        self.CONGESTION_THRESHOLDS = CONGESTION_THRESHOLDS
          
-        # Speed limits with scenario-specific overrides
-        self.SPEED_LIMITS = scenario_config.SPEED_LIMITS
+        # Speed limits with improved values 
+        self.SPEED_LIMITS = SPEED_LIMITS
          
-        # PCU values with scenario-specific overrides
-        self.PCU_VALUES = scenario_config.PCU_VALUES
+        # PCU values with improved accuracy 
+        self.PCU_VALUES = PCU_VALUES
          
-        # Priority weights with scenario-specific overrides
-        self.PRIORITY_WEIGHTS = scenario_config.PRIORITY_WEIGHTS
+        # Priority weights with improved balance 
+        self.PRIORITY_WEIGHTS = PRIORITY_WEIGHTS
          
-        # Traffic management parameters with scenario-specific overrides
-        self.MAX_REROUTE_ATTEMPTS = scenario_config.MAX_REROUTE_ATTEMPTS
-        self.MIN_REROUTE_INTERVAL = scenario_config.MIN_REROUTE_INTERVAL
-        self.CONGESTION_HISTORY_SIZE = scenario_config.CONGESTION_HISTORY_SIZE
-        self.ADAPTIVE_ROUTING_THRESHOLD = scenario_config.ADAPTIVE_ROUTING_THRESHOLD
+        # Traffic management parameters with improved values 
+        self.MAX_REROUTE_ATTEMPTS = MAX_REROUTE_ATTEMPTS
+        self.MIN_REROUTE_INTERVAL = MIN_REROUTE_INTERVAL
+        self.CONGESTION_HISTORY_SIZE = CONGESTION_HISTORY_SIZE
+        self.ADAPTIVE_ROUTING_THRESHOLD = ADAPTIVE_ROUTING_THRESHOLD
          
-        # Signal timing parameters with scenario-specific overrides
-        self.MIN_GREEN_TIME = scenario_config.MIN_GREEN_TIME
-        self.MAX_GREEN_TIME = scenario_config.MAX_GREEN_TIME
-        self.YELLOW_TIME = scenario_config.YELLOW_TIME
-        self.ALL_RED_TIME = scenario_config.ALL_RED_TIME
+        # Signal timing parameters with improved values 
+        self.MIN_GREEN_TIME = MIN_GREEN_TIME
+        self.MAX_GREEN_TIME = MAX_GREEN_TIME
+        self.YELLOW_TIME = YELLOW_TIME
+        self.ALL_RED_TIME = ALL_RED_TIME
          
-        # PSO parameters with scenario-specific overrides
-        self.PSO_PARTICLES = scenario_config.PSO_PARTICLES
-        self.PSO_ITERATIONS = scenario_config.PSO_ITERATIONS
+        # PSO parameters with improved values 
+        self.PSO_PARTICLES = PSO_PARTICLES
+        self.PSO_ITERATIONS = PSO_ITERATIONS
          
         # Initialize data structures 
         self.network_graph = nx.DiGraph() 
@@ -91,10 +87,10 @@ class AdvancedTrafficManager:
         
         # Initialize network without starting SUMO
         self.net = sumolib.net.readNet(self.sumo_config['net_file'])
-        self._build_network_graph()
+        self._build_network_graph()  # Build NetworkX graph at initialization
         self.simulation_running = False
         self.simulation_thread = None
-        self.traci_started = False
+        self.traci_started = False  # New flag to track if TraCI has been started
  
     def _initialize_system(self): 
         """Initialize system without starting SUMO.""" 
@@ -128,9 +124,15 @@ class AdvancedTrafficManager:
                 speed_limit = edge.getSpeed() 
                  
                 # Improved HCM-based capacity calculation 
-                base_capacity = min(2300, 2000 + 25 * speed_limit)
-                capacity_adjustment = min(1.1, (lane_width - 3.0) * 0.15 + 1.0)
-                theoretical_capacity = base_capacity * num_lanes * capacity_adjustment * 0.97
+                base_capacity = min(2300, 2000 + 25 * speed_limit)  # Increased base capacity 
+                capacity_adjustment = min(1.1, (lane_width - 3.0) * 0.15 + 1.0)  # Increased adjustment 
+                 
+                theoretical_capacity = ( 
+                    base_capacity *  
+                    num_lanes *  
+                    capacity_adjustment *  
+                    0.97  # Increased peak hour factor 
+                ) 
                  
                 attrs = { 
                     'length': edge.getLength(), 
@@ -141,9 +143,11 @@ class AdvancedTrafficManager:
                     'priority': edge.getPriority(), 
                     'type': edge.getFunction(), 
                     'grade': edge.getGrade() if hasattr(edge, 'getGrade') else 0.0, 
-                    'curvature': self._calculate_edge_curvature(edge)
+                    'curvature': self._calculate_edge_curvature(edge)  # Added curvature 
                 } 
-                self.network_graph.add_edge(from_node, to_node, edge_id=edge_id, **attrs) 
+                 
+                self.network_graph.add_edge(from_node, to_node,  
+                                         edge_id=edge_id, **attrs) 
              
             logger.info(f"Network graph built with {self.network_graph.number_of_nodes()} nodes and {self.network_graph.number_of_edges()} edges") 
              
@@ -157,12 +161,20 @@ class AdvancedTrafficManager:
             shape = edge.getShape() 
             if len(shape) < 3: 
                 return 0.0 
+             
+            # Calculate curvature using three points 
             p1, p2, p3 = shape[0], shape[len(shape)//2], shape[-1] 
+             
+            # Calculate vectors 
             v1 = np.array([p2[0] - p1[0], p2[1] - p1[1]]) 
             v2 = np.array([p3[0] - p2[0], p3[1] - p2[1]]) 
+             
+            # Calculate angle between vectors 
             cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)) 
             angle = np.arccos(np.clip(cos_angle, -1.0, 1.0)) 
-            return angle / np.pi 
+             
+            return angle / np.pi  # Normalize to [0,1] 
+             
         except Exception as e: 
             logger.warning(f"Failed to calculate edge curvature: {str(e)}") 
             return 0.0 
@@ -171,276 +183,1498 @@ class AdvancedTrafficManager:
         """Initialize traffic signal states with improved timing plans.""" 
         try: 
             for tls_id in traci.trafficlight.getIDList(): 
+                # Get signal programs 
                 programs = traci.trafficlight.getCompleteRedYellowGreenDefinition(tls_id) 
+                 
+                # Store initial signal state with improved parameters 
                 self.signal_states[tls_id] = { 
-                    'current_phase': 0, 'phase_duration': 0, 'last_change': 0,
-                    'programs': programs, 'controlled_lanes': traci.trafficlight.getControlledLanes(tls_id),
-                    'controlled_links': traci.trafficlight.getControlledLinks(tls_id),
-                    'optimal_params': np.array([35.0, 1.2, 0.6])
+                    'current_phase': 0, 
+                    'phase_duration': 0, 
+                    'last_change': 0, 
+                    'programs': programs, 
+                    'controlled_lanes': traci.trafficlight.getControlledLanes(tls_id), 
+                    'controlled_links': traci.trafficlight.getControlledLinks(tls_id), 
+                    'optimal_params': np.array([35.0, 1.2, 0.6])  # Improved initial parameters 
                 } 
+                 
             logger.info(f"Initialized {len(self.signal_states)} traffic signals") 
-            if self.signal_states: self._initialize_signal_pso()
+             
+            # Initialize PSO for signal timing 
+            if self.signal_states: 
+                self._initialize_signal_pso() 
+             
         except Exception as e: 
             logger.error(f"Traffic signal initialization failed: {str(e)}") 
             raise 
  
     def _initialize_signal_pso(self): 
-        bounds = [(20.0, 70.0), (0.6, 3.5), (0.3, 2.5)]
-        self.signal_pso = ParticleSwarmOptimizer(num_particles=self.PSO_PARTICLES, num_dimensions=3, bounds=bounds, objective_function=self._evaluate_signal_timing, w=0.8, c1=1.8, c2=1.8, max_iterations=self.PSO_ITERATIONS)
+        """Initialize PSO for signal timing with improved parameters.""" 
+        bounds = [ 
+            (20.0, 70.0),  # Base green time (seconds) 
+            (0.6, 3.5),    # Demand weight 
+            (0.3, 2.5)     # Queue weight 
+        ] 
+         
+        self.signal_pso = ParticleSwarmOptimizer( 
+            num_particles=self.PSO_PARTICLES, 
+            num_dimensions=3, 
+            bounds=bounds, 
+            objective_function=self._evaluate_signal_timing, 
+            w=0.8,  # Increased inertia 
+            c1=1.8,  # Increased cognitive parameter 
+            c2=1.8,  # Increased social parameter 
+            max_iterations=self.PSO_ITERATIONS 
+        ) 
+         
         logger.info("PSO for signal timing optimization initialized") 
  
     def _initialize_speed_control_pso(self):
-        bounds = [(0.3, 1.0), (0.3, 1.0), (0.3, 1.0), (0.5, 0.8)]
-        self.speed_control_pso = ParticleSwarmOptimizer(num_particles=self.PSO_PARTICLES, num_dimensions=4, bounds=bounds, objective_function=self._evaluate_speed_control, w=0.8, c1=1.8, c2=1.8, max_iterations=self.PSO_ITERATIONS)
+        """Initialize PSO for speed control optimization."""
+        bounds = [
+            (0.3, 1.0),   # Density weight
+            (0.3, 1.0),   # Queue weight
+            (0.3, 1.0),   # Gap weight
+            (0.5, 0.8)    # Minimum speed factor
+        ]
+        
+        self.speed_control_pso = ParticleSwarmOptimizer(
+            num_particles=self.PSO_PARTICLES,
+            num_dimensions=4,
+            bounds=bounds,
+            objective_function=self._evaluate_speed_control,
+            w=0.8,
+            c1=1.8,
+            c2=1.8,
+            max_iterations=self.PSO_ITERATIONS
+        )
+        
         logger.info("PSO for speed control optimization initialized")
  
     def _initialize_route_pso(self):
-        bounds = [(0.3, 1.0), (0.3, 1.0), (0.3, 1.0), (0.3, 1.0)]
-        self.route_pso = ParticleSwarmOptimizer(num_particles=self.PSO_PARTICLES, num_dimensions=4, bounds=bounds, objective_function=self._evaluate_routing_strategy, w=0.8, c1=1.8, c2=1.8, max_iterations=self.PSO_ITERATIONS)
+        """Initialize PSO for route optimization."""
+        bounds = [
+            (0.3, 1.0),   # Travel time weight
+            (0.3, 1.0),   # Queue delay weight
+            (0.3, 1.0),   # Congestion penalty weight
+            (0.3, 1.0)    # Historical congestion weight
+        ]
+        
+        self.route_pso = ParticleSwarmOptimizer(
+            num_particles=self.PSO_PARTICLES,
+            num_dimensions=4,
+            bounds=bounds,
+            objective_function=self._evaluate_routing_strategy,
+            w=0.8,
+            c1=1.8,
+            c2=1.8,
+            max_iterations=self.PSO_ITERATIONS
+        )
+        
         logger.info("PSO for route optimization initialized")
-
+ 
     def _predict_congestion(self, edge_id: str) -> float:
+        """Predict future congestion using historical data, current metrics, and traffic patterns."""
         try:
             metrics = self.traffic_metrics[edge_id]
             history = self.edge_congestion_history[edge_id]
             edge = self.net.getEdge(edge_id)
-            if not history: return metrics.congestion_index
+            
+            if not history:
+                return metrics.congestion_index
+ 
+            # Get current metrics with safety checks
             current_density = metrics.density if hasattr(metrics, 'density') else 0
             current_speed = metrics.avg_speed if hasattr(metrics, 'avg_speed') else edge.getSpeed()
             current_occupancy = metrics.occupancy if hasattr(metrics, 'occupancy') else 0
             current_queue = metrics.queue_length if hasattr(metrics, 'queue_length') else 0
+            
+            # Calculate historical trend using exponential moving average
+            alpha = 0.3  # Weight for recent values
             historical_trend = 0.0
             if len(history) >= 5:
-                weights = [math.exp(-i * 0.5) for i in range(5)]
-                historical_trend = sum(h * w for h, w in zip(history[-5:], weights)) / sum(weights)
-            congestion_rate = (history[-1] - history[-3]) / 3 if len(history) >= 3 else 0.0
-            max_density = 140
+                weights = [math.exp(-i * 0.5) for i in range(5)]  # Exponential decay weights
+                weight_sum = sum(weights)
+                historical_trend = sum(h * w for h, w in zip(history[-5:], weights)) / weight_sum
+ 
+            # Calculate rate of change in congestion
+            congestion_rate = 0.0
+            if len(history) >= 3:
+                congestion_rate = (history[-1] - history[-3]) / 3
+ 
+            # Calculate normalized metrics
+            max_density = 140  # vehicles per km per lane
             density_factor = min(1.0, current_density / (max_density * len(edge.getLanes())))
+            
             speed_ratio = current_speed / max(edge.getSpeed(), 0.1)
             speed_factor = 1 - min(1.0, speed_ratio)
-            queue_capacity = len(edge.getLanes()) * 10
+            
+            queue_capacity = len(edge.getLanes()) * 10  # Assume 10 vehicles per lane as max queue
             queue_factor = min(1.0, current_queue / max(1, queue_capacity))
+            
             occupancy_factor = min(1.0, current_occupancy / 100)
-            prediction = (0.25 * metrics.congestion_index + 0.20 * historical_trend + 0.15 * density_factor + 0.15 * queue_factor + 0.10 * speed_factor + 0.10 * occupancy_factor + 0.05 * max(0, congestion_rate))
+ 
+            # Weighted combination of all factors (removed time-based factors)
+            prediction = (
+                0.25 * metrics.congestion_index +     # Current congestion (highest weight)
+                0.20 * historical_trend +             # Historical pattern
+                0.15 * density_factor +               # Current density impact
+                0.15 * queue_factor +                 # Queue impact
+                0.10 * speed_factor +                 # Speed impact
+                0.10 * occupancy_factor +             # Current occupancy
+                0.05 * max(0, congestion_rate)        # Rate of change (trend)
+            )
+ 
+            # Apply downstream congestion influence
             try:
                 downstream_edges = [conn.getTo().getID() for conn in edge.getOutgoing()]
                 if downstream_edges:
-                    vals = [self.traffic_metrics[e].congestion_index for e in downstream_edges if e in self.traffic_metrics]
-                    if vals: prediction = 0.8 * prediction + 0.2 * np.mean(vals)
-            except Exception: pass
-            return min(0.95, max(0.1, prediction))
+                    downstream_congestion = np.mean([
+                        self.traffic_metrics[e].congestion_index 
+                        for e in downstream_edges 
+                        if e in self.traffic_metrics
+                    ])
+                    # Blend with downstream congestion
+                    prediction = 0.8 * prediction + 0.2 * downstream_congestion
+            except:
+                pass
+ 
+            # Ensure prediction stays within bounds
+            prediction = min(0.95, max(0.1, prediction))
+            
+            return prediction
+ 
         except Exception as e:
             logger.warning(f"Congestion prediction failed for edge {edge_id}: {str(e)}")
-            return 0.5
+            return 0.5  # Return moderate congestion as fallback
  
     def _update_vehicle_states(self): 
         """Update vehicle states with improved tracking.""" 
         try: 
             current_time = traci.simulation.getTime() 
             new_states = {} 
+             
             for vehicle_id in traci.vehicle.getIDList(): 
                 try: 
                     vehicle_type = traci.vehicle.getVehicleClass(vehicle_id) 
                     current_route = traci.vehicle.getRoute(vehicle_id) 
+                     
+                    # Get detailed vehicle metrics 
                     speed = traci.vehicle.getSpeed(vehicle_id) 
                     acceleration = traci.vehicle.getAcceleration(vehicle_id) 
                     lane_position = traci.vehicle.getLanePosition(vehicle_id) 
                     position = traci.vehicle.getPosition(vehicle_id) 
+                     
+                    # Get or create vehicle state 
                     state = self.vehicle_states.get(vehicle_id, None) 
                     reroute_attempts = state.reroute_attempts if state else 0 
                     last_reroute_time = state.last_reroute_time if state else 0 
+                     
+                    # Calculate speed change 
                     speed_change = abs(speed - (state.last_speed if state else speed)) 
-                    position_change = np.sqrt((position[0] - (state.last_position[0] if state else position[0]))**2 + (position[1] - (state.last_position[1] if state else position[1]))**2)
-                    new_states[vehicle_id] = VehicleState(id=vehicle_id, type=vehicle_type, position=position, speed=speed, route=current_route, current_edge=traci.vehicle.getRoadID(vehicle_id), destination=current_route[-1], reroute_attempts=reroute_attempts, priority=self.PRIORITY_WEIGHTS.get(vehicle_type, 1.0), waiting_time=traci.vehicle.getWaitingTime(vehicle_id), lane_position=lane_position, last_speed=speed, last_position=position, speed_change=speed_change, position_change=position_change, acceleration=acceleration, last_reroute_time=last_reroute_time)
-                except Exception as e: logger.warning(f"Error updating vehicle {vehicle_id}: {str(e)}")
-            self.vehicle_states = new_states
-        except Exception as e: logger.error(f"Vehicle state update failed: {str(e)}")
-
-    def _compute_edge_metrics(self):
-        try:
-            for edge_id in traci.edge.getIDList():
-                if edge_id.startswith(':'): continue
+                     
+                    # Calculate position change 
+                    position_change = np.sqrt( 
+                        (position[0] - (state.last_position[0] if state else position[0]))**2 + 
+                        (position[1] - (state.last_position[1] if state else position[1]))**2 
+                    ) 
+                     
+                    new_states[vehicle_id] = VehicleState( 
+                        id=vehicle_id, 
+                        type=vehicle_type, 
+                        position=position, 
+                        speed=speed, 
+                        route=current_route, 
+                        current_edge=traci.vehicle.getRoadID(vehicle_id), 
+                        destination=current_route[-1], 
+                        reroute_attempts=reroute_attempts, 
+                        priority=self.PRIORITY_WEIGHTS.get(vehicle_type, 1.0), 
+                        last_reroute_time=last_reroute_time, 
+                        waiting_time=traci.vehicle.getWaitingTime(vehicle_id), 
+                        lane_position=lane_position, 
+                        acceleration=acceleration, 
+                        last_speed=speed, 
+                        last_position=position 
+                    ) 
+                     
+                    # Log significant changes 
+                    if state and ( 
+                        speed_change > 3.0 or  # Reduced threshold 
+                        abs(acceleration) > 1.5 or  # Reduced threshold 
+                        position_change > 5.0  # Added position change check 
+                    ): 
+                        logger.debug(f"Vehicle {vehicle_id} state change - Speed: {speed:.2f}, Acc: {acceleration:.2f}, Pos: {position_change:.2f}") 
+                     
+                except traci.exceptions.TraCIException as e: 
+                    logger.warning(f"Failed to update state for vehicle {vehicle_id}: {str(e)}") 
+                    continue 
+             
+            self.vehicle_states = new_states 
+            
+            # Update driver assistance with traffic metrics
+            self.driver_assistance.update_driver(self.net, self.vehicle_states, self.traffic_metrics)
+            
+        except Exception as e: 
+            logger.error(f"Vehicle state update failed: {str(e)}") 
+            raise 
+ 
+    def _compute_edge_metrics(self) -> Dict[str, TrafficMetrics]: 
+        """Compute edge metrics with improved calculations and congestion prediction.""" 
+        try: 
+            edge_metrics = defaultdict(TrafficMetrics) 
+ 
+            # Collect raw data per edge 
+            edge_data = defaultdict(lambda: { 
+                'speeds': [], 
+                'volumes': 0.0, 
+                'queue': 0, 
+                'occupancy': 0.0, 
+                'stops': 0, 
+                'accelerations': [] 
+            }) 
+ 
+            # First pass: collect raw data 
+            for vehicle in self.vehicle_states.values(): 
+                edge = vehicle.current_edge 
+                if edge.startswith(':'):  
+                    continue 
+ 
+                # Calculate PCU-adjusted volume 
+                pcu = self.PCU_VALUES.get(vehicle.type, 1.0) 
+                edge_data[edge]['speeds'].append(vehicle.speed) 
+                edge_data[edge]['volumes'] += pcu 
+                edge_data[edge]['accelerations'].append(vehicle.acceleration) 
+ 
+                # Count queued vehicles and stops 
+                if vehicle.speed < 1.0: 
+                    edge_data[edge]['queue'] += 1 
+                if vehicle.speed < 0.1: 
+                    edge_data[edge]['stops'] += 1 
+ 
+            # Second pass: compute metrics for each edge 
+            for edge in self.net.getEdges(): 
+                edge_id = edge.getID() 
+                data = edge_data[edge_id] 
+                speeds = data['speeds'] 
+                volume = data['volumes'] 
+                accelerations = data['accelerations'] 
+ 
+                metrics = TrafficMetrics() 
+                metrics.volume = volume 
+ 
+                if speeds: 
+                    metrics.avg_speed = np.mean(speeds) 
+                    metrics.speed_variance = np.var(speeds) if len(speeds) > 1 else 0 
+                    metrics.speed_entropy = entropy(speeds) if len(speeds) > 1 else 0 
+ 
+                if accelerations: 
+                    metrics.acceleration_variance = np.var(accelerations) if len(accelerations) > 1 else 0 
+ 
+                # Compute HCM-based metrics 
+                edge_length = edge.getLength() 
+                num_lanes = len(edge.getLanes()) 
+ 
+                # Improved density calculation 
+                metrics.density = (volume / (edge_length / 1000) / num_lanes) if edge_length > 0 else 0 
+ 
+                # Improved flow rate calculation 
+                metrics.flow_rate = volume * 3600  # Convert to vehicles/hour 
+ 
+                # Queue length and stops 
+                metrics.queue_length = data['queue'] 
+                metrics.stop_count = data['stops'] 
+ 
+                # Improved occupancy calculation 
+                metrics.occupancy = min(100.0, (metrics.density / 130) * 100)  # Increased jam density 
+ 
+                # Improved congestion index calculation 
+                capacity = self.network_graph[edge.getFromNode().getID()][edge.getToNode().getID()]['capacity'] 
+                metrics.congestion_index = min(1.0, metrics.flow_rate / capacity if capacity > 0 else 1.0) 
+ 
+                # Predict future congestion
+                metrics.predicted_congestion = self._predict_congestion(edge_id)
+ 
+                # Update congestion history 
+                self.edge_congestion_history[edge_id].append(metrics.congestion_index) 
+                if len(self.edge_congestion_history[edge_id]) > self.CONGESTION_HISTORY_SIZE: 
+                    self.edge_congestion_history[edge_id].pop(0) 
+                 
+                edge_metrics[edge_id] = metrics 
+             
+            # Update the system's traffic metrics 
+            self.traffic_metrics = edge_metrics 
+            return edge_metrics 
+             
+        except Exception as e: 
+            logger.error(f"Edge metrics computation failed: {str(e)}") 
+            raise 
+ 
+    def _optimize_traffic_signals(self): 
+        """Optimize traffic signals with improved proactive control."""
+        try: 
+            if self.signal_pso is None: 
+                self._initialize_signal_pso() 
+            
+            # Check if there are any traffic signals
+            tls_list = traci.trafficlight.getIDList()
+            if not tls_list:
+                logger.info("No traffic signals found in the network")
+                return
+            
+            # Run PSO optimization with more iterations 
+            best_params, best_score = self.signal_pso.optimize(5)  # Increased iterations 
+            
+            # Apply optimized parameters 
+            self._apply_signal_optimization(best_params) 
+            
+            logger.info(f"Signal optimization completed with score: {best_score:.2f}") 
+             
+        except Exception as e: 
+            logger.error(f"Traffic signal optimization failed: {str(e)}")
+ 
+    def _apply_signal_optimization(self, params): 
+        """Apply signal optimization with improved proactive control."""
+        try: 
+            base_green_time, demand_weight, queue_weight = params 
+             
+            for tls_id, signal_data in self.signal_states.items(): 
                 try:
-                    vehicle_count = traci.edge.getLastStepVehicleNumber(edge_id)
-                    mean_speed = traci.edge.getLastStepMeanSpeed(edge_id)
-                    occupancy = traci.edge.getLastStepOccupancy(edge_id)
-                    waiting_time = traci.edge.getWaitingTime(edge_id)
+                    # Update optimal parameters 
+                    signal_data['optimal_params'] = params 
+                     
+                    # Calculate adaptive timing for each signal 
+                    controlled_lanes = signal_data['controlled_lanes'] 
+                    
+                    # Get current program logic
+                    current_program = traci.trafficlight.getAllProgramLogics(tls_id)[0]  # Get first program
+                    phase_count = len(current_program.phases)
+                     
+                    if phase_count == 0: 
+                        continue 
+                     
+                    # Calculate phase durations with improved formula 
+                    new_phases = [] 
+                     
+                    for i, phase in enumerate(current_program.phases): 
+                        state = phase.state 
+                         
+                        total_demand = 0.0 
+                        total_queue = 0.0 
+                        total_stops = 0.0 
+                        max_predicted_congestion = 0.0
+                         
+                        for j, lane_id in enumerate(controlled_lanes): 
+                            if j < len(state) and state[j] in ['g', 'G']: 
+                                edge_id = lane_id.split('_')[0] 
+                                 
+                                if edge_id in self.traffic_metrics: 
+                                    metrics = self.traffic_metrics[edge_id] 
+                                    total_demand += metrics.flow_rate 
+                                    total_queue += metrics.queue_length 
+                                    total_stops += metrics.stop_count 
+                                    max_predicted_congestion = max(max_predicted_congestion, metrics.predicted_congestion)
+                         
+                        # Improved duration calculation with predicted congestion
+                        duration = ( 
+                            base_green_time +  
+                            (total_demand / 500) * demand_weight +  # Adjusted scaling 
+                            total_queue * queue_weight * 2.5 +      # Increased queue weight 
+                            total_stops * 2.0 +                     # Increased stop penalty
+                            max_predicted_congestion * 20.0         # Added predicted congestion impact
+                        ) 
+                         
+                        # Enforce min/max limits with improved bounds 
+                        duration = max(self.MIN_GREEN_TIME, min(self.MAX_GREEN_TIME, duration))
+                        
+                        # Create new phase with optimized duration
+                        new_phase = traci.trafficlight.Phase(
+                            duration=duration,
+                            state=state,
+                            minDur=self.MIN_GREEN_TIME,
+                            maxDur=self.MAX_GREEN_TIME
+                        )
+                        new_phases.append(new_phase)
+                     
+                    # Create new program with improved parameters 
+                    new_program = traci.trafficlight.Logic( 
+                        programID=current_program.programID,
+                        type=current_program.type,
+                        currentPhaseIndex=current_program.currentPhaseIndex,
+                        phases=new_phases
+                    ) 
+                     
+                    # Apply the new program 
+                    traci.trafficlight.setProgramLogic(tls_id, new_program) 
+                     
+                    # Additional measures for high congestion
+                    if max_predicted_congestion > self.CONGESTION_THRESHOLDS['heavy']:
+                        # Increase yellow time for safety
+                        yellow_phases = [phase for phase in new_phases if 'y' in phase.state]
+                        for phase in yellow_phases:
+                            phase.duration = min(self.YELLOW_TIME * 1.5, phase.duration)
+                        
+                        # Add all-red phase if not present
+                        if not any('r' * len(controlled_lanes) == phase.state for phase in new_phases):
+                            all_red_phase = traci.trafficlight.Phase(
+                                duration=self.ALL_RED_TIME,
+                                state='r' * len(controlled_lanes),
+                                minDur=self.ALL_RED_TIME,
+                                maxDur=self.ALL_RED_TIME * 1.5
+                            )
+                            new_phases.append(all_red_phase)
+                            new_program.phases = new_phases
+                            traci.trafficlight.setProgramLogic(tls_id, new_program)
+                    
+                    logger.debug(f"Applied optimized timing to signal {tls_id}: {[phase.duration for phase in new_phases]}")
+                
+                except Exception as e:
+                    logger.warning(f"Failed to optimize signal {tls_id}: {str(e)}")
+                    continue
+                 
+        except Exception as e: 
+            logger.error(f"Failed to apply signal optimization: {str(e)}")
+ 
+    def _optimize_speed_limits(self): 
+        """Optimize speed limits with improved proactive control."""
+        try: 
+            # First check if simulation is running and there are vehicles
+            if not self.simulation_running or not traci.vehicle.getIDList():
+                logger.debug("Skipping speed optimization - simulation not running or no vehicles")
+                return
+ 
+            if self.speed_control_pso is None: 
+                self._initialize_speed_control_pso() 
+            
+            # Identify edges that need optimization
+            edges_to_optimize = []
+            for edge_id in traci.edge.getIDList():
+                if edge_id.startswith(':'):  # Skip internal edges
+                    continue
+                    
+                try:
+                    # Get actual metrics from TraCI with null checks
+                    occupancy = traci.edge.getLastStepOccupancy(edge_id) or 0.0
+                    mean_speed = traci.edge.getLastStepMeanSpeed(edge_id) or 0.0
+                    
+                    # Get speed limit from net file
                     edge = self.net.getEdge(edge_id)
-                    edge_length = edge.getLength()
-                    num_lanes = len(edge.getLanes())
-                    density = vehicle_count / (edge_length / 1000.0 * max(1, num_lanes)) if edge_length > 0 else 0
+                    if edge is None:
+                        continue
+                        
                     speed_limit = edge.getSpeed()
-                    congestion_index = max(0.0, min(1.0, 1.0 - mean_speed / speed_limit)) if speed_limit > 0 else 0.0
-                    queue_length = sum(traci.lane.getLastStepHaltingNumber(l.getID()) for l in edge.getLanes())
-                    flow_rate = vehicle_count * 3600.0 / max(1.0, traci.simulation.getDeltaT())
-                    metric = self.traffic_metrics[edge_id]
-                    metric.vehicle_count = vehicle_count
-                    metric.avg_speed = mean_speed
-                    metric.occupancy = occupancy
-                    metric.waiting_time = waiting_time
-                    metric.density = density
-                    metric.queue_length = queue_length
-                    metric.flow_rate = flow_rate
-                    metric.congestion_index = congestion_index
-                    self.edge_congestion_history[edge_id].append(congestion_index)
-                    if len(self.edge_congestion_history[edge_id]) > self.CONGESTION_HISTORY_SIZE: self.edge_congestion_history[edge_id].pop(0)
-                except Exception as e: logger.warning(f"Error computing metrics for edge {edge_id}: {str(e)}")
-        except Exception as e: logger.error(f"Edge metric computation failed: {str(e)}")
-
-    def _evaluate_system_performance(self):
-        try:
-            total_waiting = sum(traci.vehicle.getWaitingTime(v) for v in traci.vehicle.getIDList())
-            total_time_loss = sum(traci.vehicle.getTimeLoss(v) for v in traci.vehicle.getIDList())
-            active = traci.vehicle.getIDCount()
-            return {'total_waiting_time': total_waiting, 'total_time_loss': total_time_loss, 'active_vehicles': active}
+                    
+                    # Check for congestion using actual metrics with safe comparison
+                    if occupancy > 0.7 or (mean_speed > 0 and speed_limit and mean_speed < speed_limit * 0.5):
+                        edges_to_optimize.append(edge_id)
+                except Exception as e:
+                    logger.warning(f"Failed to check edge {edge_id} for optimization: {str(e)}")
+                    continue
+            
+            if not edges_to_optimize: 
+                return 
+            
+            # Run PSO optimization with null check
+            best_params = None
+            best_score = float('inf')
+            
+            if self.speed_control_pso is not None:
+                try:
+                    best_params, best_score = self.speed_control_pso.optimize_step() 
+                except Exception as e:
+                    logger.warning(f"PSO optimization failed: {str(e)}")
+                    return
+            
+            if best_params is None:
+                logger.warning("Speed optimization failed to find valid parameters")
+                return
+            
+            # Apply optimized parameters 
+            self._apply_speed_optimization(edges_to_optimize, best_params) 
+            
+            logger.info(f"Speed optimization completed for {len(edges_to_optimize)} edges with score: {best_score:.2f}") 
+             
+        except Exception as e: 
+            logger.error(f"Speed limit optimization failed: {str(e)}")
+ 
+    def _apply_speed_optimization(self, edges_to_optimize, params): 
+        """Apply speed optimization with improved proactive control."""
+        try: 
+            density_weight, queue_weight, gap_weight, min_speed_factor = params 
+             
+            for edge_id in edges_to_optimize: 
+                try:
+                    metrics = self.traffic_metrics.get(edge_id)
+                    if metrics is None:
+                        continue
+                    
+                    edge = self.net.getEdge(edge_id)
+                    if edge is None:
+                        continue
+                        
+                    normal_speed = edge.getSpeed()
+                     
+                    # Calculate speed adjustment factors with safety checks
+                    congestion = metrics.predicted_congestion if metrics.predicted_congestion is not None else 0
+                    queue_factor = min(1.0, metrics.queue_length / 5) * queue_weight if metrics.queue_length is not None else 0
+                    density_factor = min(1.0, metrics.density / 60) * density_weight if metrics.density is not None else 0
+                    stop_factor = min(1.0, metrics.stop_count / 3) * 0.4 if metrics.stop_count is not None else 0
+                    
+                    # Calculate speed adjustment with improved formula
+                    speed_factor = max( 
+                        min_speed_factor, 
+                        1.0 - (
+                            congestion * 0.5 +  # Increased impact
+                            queue_factor * 0.4 +  # Increased impact
+                            density_factor * 0.3 +  # Increased impact
+                            stop_factor * 0.2  # Added impact
+                        )
+                    ) 
+                     
+                    # Apply new speed limit with improved bounds 
+                    new_speed = normal_speed * speed_factor 
+                    new_speed = max(3.0, min(new_speed, normal_speed))  # Increased minimum speed
+                     
+                    # Apply speed limit using TraCI
+                    traci.edge.setMaxSpeed(edge_id, new_speed) 
+                     
+                    logger.debug(f"Applied speed limit to edge {edge_id}: {new_speed:.2f} m/s (factor: {speed_factor:.2f})") 
+                     
+                    # Harmonize speeds with improved safety
+                    self._harmonize_speeds(edge_id, new_speed, gap_weight) 
+                     
+                    # Additional measures for congested edges
+                    if metrics.predicted_congestion > self.CONGESTION_THRESHOLDS['heavy']:
+                        # Increase minimum gap between vehicles
+                        for vehicle in self.vehicle_states.values():
+                            if vehicle.current_edge == edge_id:
+                                try:
+                                    traci.vehicle.setMinGap(vehicle.id, 2.0)  # Increased minimum gap
+                                except traci.exceptions.TraCIException:
+                                    continue
+                    
+                except Exception as e: 
+                    logger.warning(f"Failed to apply speed limit to edge {edge_id}: {str(e)}") 
+                    continue 
+                      
+        except Exception as e: 
+            logger.error(f"Failed to apply speed optimization: {str(e)}")
+ 
+    def _harmonize_speeds(self, edge_id, target_speed, gap_weight): 
+        """Harmonize speeds with improved safety and flow."""
+        try: 
+            edge_vehicles = [v for v in self.vehicle_states.values() if v.current_edge == edge_id] 
+             
+            if len(edge_vehicles) < 2: 
+                return 
+                 
+            edge_vehicles.sort(key=lambda v: v.lane_position) 
+             
+            for i, vehicle in enumerate(edge_vehicles): 
+                # Base target speed with improved safety margin 
+                v_target = target_speed * 0.95  # Increased safety margin
+                 
+                if i > 0: 
+                    lead_vehicle = edge_vehicles[i-1] 
+                    position_gap = lead_vehicle.lane_position - vehicle.lane_position 
+                     
+                    if position_gap > 0 and vehicle.speed > 0: 
+                        time_gap = position_gap / vehicle.speed 
+                         
+                        # Improved gap-based speed adjustment 
+                        if time_gap < 2.0:  # Reduced minimum gap
+                            gap_factor = min(1.0, time_gap / 2.0)
+                            v_target = min(v_target, lead_vehicle.speed * gap_factor) 
+                        elif time_gap > 4.0:  # Reduced maximum gap
+                            v_target = min(target_speed, lead_vehicle.speed * 1.1)  # Reduced speed increase
+                 
+                # Apply smooth speed adjustment with improved control
+                try: 
+                    current_speed = vehicle.speed 
+                    # More aggressive speed adjustment
+                    new_speed = current_speed + (v_target - current_speed) * gap_weight * 0.15
+                    traci.vehicle.setSpeed(vehicle.id, new_speed) 
+                except: 
+                    continue 
+                     
+        except Exception as e: 
+            logger.warning(f"Speed harmonization failed for edge {edge_id}: {str(e)}") 
+ 
+    def _optimize_routing(self): 
+        """Optimize routing with improved vehicle selection and proactive rerouting."""
+        try: 
+            # First check if simulation is running and there are vehicles
+            if not self.simulation_running or not traci.vehicle.getIDList():
+                logger.debug("Skipping route optimization - simulation not running or no vehicles")
+                return
+ 
+            if self.route_pso is None: 
+                self._initialize_route_pso() 
+             
+            best_params = None
+            best_score = float('inf')
+            
+            if self.route_pso is not None:
+                try:
+                    best_params, best_score = self.route_pso.optimize_step() 
+                except Exception as e:
+                    logger.warning(f"PSO optimization failed: {str(e)}")
+                    return
+            
+            if best_params is None:
+                logger.warning("Route optimization failed to find valid parameters")
+                return
+            
+            current_time = traci.simulation.getTime() 
+            candidates = set()  # Using set to avoid duplicates
+            
+            # First, identify edges with predicted congestion
+            congested_edges = set()
+            for edge_id, metrics in self.traffic_metrics.items():
+                if metrics and metrics.predicted_congestion and metrics.predicted_congestion > self.ADAPTIVE_ROUTING_THRESHOLD:
+                    congested_edges.add(edge_id)
+                    logger.info(f"Edge {edge_id} predicted to be congested: {metrics.predicted_congestion:.2f}")
+            
+            # Then find vehicles that will pass through these edges
+            for vehicle_id, state in self.vehicle_states.items():
+                if not state or not state.current_edge or state.current_edge == state.destination:
+                    continue
+                
+                try:
+                    # Get vehicle's current route with null check
+                    if not traci.vehicle.getIDList() or vehicle_id not in traci.vehicle.getIDList():
+                        continue
+                        
+                    current_route = traci.vehicle.getRoute(vehicle_id)
+                    if not current_route:
+                        continue
+                        
+                    current_route_index = traci.vehicle.getRouteIndex(vehicle_id)
+                    if current_route_index is None:
+                        continue
+                    
+                    # Check upcoming edges in route
+                    upcoming_route = current_route[current_route_index:]
+                    
+                    # If any upcoming edge is predicted to be congested, add vehicle to candidates
+                    for edge in upcoming_route:
+                        if edge in congested_edges:
+                            if (state.reroute_attempts < self.MAX_REROUTE_ATTEMPTS and 
+                                current_time - (state.last_reroute_time or 0) > self.MIN_REROUTE_INTERVAL):
+                                candidates.add(vehicle_id)
+                                logger.info(f"Vehicle {vehicle_id} will be rerouted proactively due to predicted congestion on {edge}")
+                            break
+                    
+                    # Also check for currently stuck vehicles as a fallback
+                    if state.speed is not None and state.waiting_time is not None:
+                        if state.speed < 0.1 and state.waiting_time > 30:
+                            candidates.add(vehicle_id)
+                
+                except traci.exceptions.TraCIException as e:
+                    logger.warning(f"Failed to check route for vehicle {vehicle_id}: {str(e)}")
+                    continue
+            
+            if candidates:
+                self._apply_adaptive_routing(list(candidates), best_params)
+                logger.info(f"Proactively rerouting {len(candidates)} vehicles")
+             
         except Exception as e:
-            logger.error(f"Performance evaluation failed: {str(e)}")
-            return {}
-
-    def run_simulation(self, steps=3600):
-        try:
-            logger.info(f"Starting simulation for {steps} steps")
-            for step in range(steps):
-                traci.simulationStep()
-                current_time = traci.simulation.getTime()
-                self._update_vehicle_states()
-                self._compute_edge_metrics()
-                if step % self.OPTIMIZATION_INTERVAL == 0:
-                    logger.info(f"Performing optimization at step {step}, time {current_time}")
-                    self._optimize_traffic_signals()
-                    self._optimize_speed_limits()
-                    self._optimize_routing()
-                    self._evaluate_system_performance()
-                if len(self.vehicle_states) == 0 and traci.simulation.getMinExpectedNumber() == 0:
-                    logger.info("All vehicles have completed their routes. Ending simulation.")
-                    break
-            final_metrics = self._evaluate_system_performance()
-            logger.info(f"Simulation completed. Final metrics: {final_metrics}")
-        except Exception as e:
-            logger.error(f"Simulation failed: {str(e)}")
-            raise
-        finally:
-            try: traci.close(); logger.info("Simulation resources cleaned up")
-            except: pass
-
+            logger.error(f"Routing optimization failed: {str(e)}")
+ 
+    def _apply_adaptive_routing(self, candidate_vehicles, params): 
+        """Apply adaptive routing with improved edge weights and alternative routes."""
+        try: 
+            travel_time_weight, queue_delay_weight, congestion_penalty_weight, hist_congestion_weight = params 
+            current_time = traci.simulation.getTime() 
+             
+            # Calculate edge weights first to avoid recomputation
+            edge_weights = {} 
+            for edge in self.net.getEdges(): 
+                edge_id = edge.getID() 
+                edge_length = edge.getLength() 
+                nominal_travel_time = edge_length / edge.getSpeed() 
+                 
+                metrics = self.traffic_metrics.get(edge_id, TrafficMetrics()) 
+                 
+                # Heavily penalize edges with predicted congestion
+                congestion_multiplier = 5.0 if metrics.predicted_congestion > self.ADAPTIVE_ROUTING_THRESHOLD else 1.0
+                
+                # Improved travel time calculation with speed prediction
+                if metrics.avg_speed > 0: 
+                    current_travel_time = edge_length / metrics.avg_speed 
+                else: 
+                    current_travel_time = nominal_travel_time * (1 + metrics.congestion_index) 
+                 
+                # Enhanced queue delay estimation with exponential penalty
+                queue_delay = metrics.queue_length * 3.0 * queue_delay_weight * (1.2 ** metrics.queue_length)
+                 
+                # Improved congestion penalty using predicted congestion
+                congestion_penalty = (metrics.predicted_congestion ** 2.0) * edge_length * congestion_penalty_weight
+                 
+                # Historical congestion with improved decay 
+                hist_congestion = np.mean(self.edge_congestion_history[edge_id][-5:]) if self.edge_congestion_history[edge_id] else 0 
+                hist_factor = 1.0 + (hist_congestion * hist_congestion_weight * 0.5)
+                 
+                # Combined edge weight with improved balancing 
+                edge_weight = ( 
+                    current_travel_time * travel_time_weight + 
+                    queue_delay + 
+                    congestion_penalty + 
+                    metrics.stop_count * 3.0  # Increased stop penalty
+                ) * hist_factor * congestion_multiplier  # Apply congestion multiplier
+                 
+                edge_weights[edge_id] = max(0.1, edge_weight) 
+ 
+            # Update edge travel times in SUMO
+            for edge_id, weight in edge_weights.items():
+                try:
+                    traci.edge.adaptTraveltime(edge_id, weight)
+                except traci.exceptions.TraCIException:
+                    continue
+             
+            # Reroute vehicles with improved weights and alternative routes
+            for vehicle_id in candidate_vehicles: 
+                try: 
+                    state = self.vehicle_states[vehicle_id] 
+                    
+                    # Get current route for validation
+                    current_route = traci.vehicle.getRoute(vehicle_id)
+                    current_index = traci.vehicle.getRouteIndex(vehicle_id)
+                    current_edge = current_route[current_index]
+                    
+                    # Set routing mode to use aggregated travel times
+                    traci.vehicle.setRoutingMode(vehicle_id, 1)  # 1 = routing mode with aggregated times
+                    
+                    # Calculate new route using Dijkstra's algorithm
+                    try:
+                        new_route = traci.simulation.findRoute(
+                            current_edge,
+                            state.destination,
+                            routingMode=1  # Use aggregated times
+                        ).edges
+                        
+                        if new_route and current_edge in new_route:
+                            # Verify the new route is valid and different from current
+                            if new_route != current_route[current_index:]:
+                                traci.vehicle.setRoute(vehicle_id, new_route)
+                                logger.info(f"Successfully rerouted vehicle {vehicle_id} with new route")
+                                
+                                state.reroute_attempts += 1 
+                                state.last_reroute_time = current_time
+                    except traci.exceptions.TraCIException as e:
+                        logger.warning(f"Failed to find new route for vehicle {vehicle_id}: {str(e)}")
+                        continue
+                     
+                except Exception as e: 
+                    logger.warning(f"Failed to reroute vehicle {vehicle_id}: {str(e)}") 
+                    continue 
+                      
+        except Exception as e: 
+            logger.error(f"Adaptive routing application failed: {str(e)}")
+ 
+    def _evaluate_system_performance(self): 
+        """Evaluate system performance with improved metrics.""" 
+        try: 
+            global_metrics = { 
+                'total_vehicles': len(self.vehicle_states), 
+                'avg_speed': np.mean([v.speed for v in self.vehicle_states.values()]) if self.vehicle_states else 0, 
+                'avg_waiting_time': np.mean([v.waiting_time for v in self.vehicle_states.values()]) if self.vehicle_states else 0, 
+                'total_travel_time': traci.simulation.getTime() * len(self.vehicle_states), 
+                'system_congestion': np.mean([m.congestion_index for m in self.traffic_metrics.values()]) if self.traffic_metrics else 0, 
+                'total_distance': sum(traci.vehicle.getDistance(vid) for vid in traci.vehicle.getIDList()), 
+                'completed_trips': traci.simulation.getArrivedNumber(), 
+                'avg_trip_duration': np.mean([traci.vehicle.getTimeLoss(vid) for vid in traci.vehicle.getIDList()]) if traci.vehicle.getIDList() else 0, 
+                'avg_acceleration': np.mean([v.acceleration for v in self.vehicle_states.values()]) if self.vehicle_states else 0, 
+                'total_stops': sum(m.stop_count for m in self.traffic_metrics.values()), 
+                'predicted_congestion': np.mean([m.predicted_congestion for m in self.traffic_metrics.values()]) if self.traffic_metrics else 0
+            } 
+             
+            logger.info(f"System Performance: " 
+                        f"Vehicles: {global_metrics['total_vehicles']}, " 
+                        f"Avg Speed: {global_metrics['avg_speed']:.2f} m/s, " 
+                        f"Congestion: {global_metrics['system_congestion']:.2f}, " 
+                        f"Predicted Congestion: {global_metrics['predicted_congestion']:.2f}, " 
+                        f"Completed Trips: {global_metrics['completed_trips']}, " 
+                        f"Total Stops: {global_metrics['total_stops']}") 
+             
+            return global_metrics 
+             
+        except Exception as e: 
+            logger.error(f"Performance evaluation failed: {str(e)}") 
+            return {} 
+ 
+    def run_simulation(self, steps=3600): 
+        """Run simulation with improved performance monitoring.""" 
+        try: 
+            logger.info(f"Starting simulation for {steps} steps") 
+             
+            for step in range(steps): 
+                traci.simulationStep() 
+                current_time = traci.simulation.getTime() 
+                 
+                # Update states 
+                self._update_vehicle_states() 
+                self._compute_edge_metrics() 
+                 
+                # Periodic optimization 
+                if step % self.OPTIMIZATION_INTERVAL == 0: 
+                    logger.info(f"Performing optimization at step {step}, time {current_time}") 
+                     
+                    self._optimize_traffic_signals() 
+                    self._optimize_speed_limits() 
+                    self._optimize_routing() 
+                     
+                    metrics = self._evaluate_system_performance() 
+                 
+                # End simulation if all vehicles completed 
+                if len(self.vehicle_states) == 0 and traci.simulation.getMinExpectedNumber() == 0: 
+                    logger.info("All vehicles have completed their routes. Ending simulation.") 
+                    break 
+                     
+            final_metrics = self._evaluate_system_performance() 
+            logger.info(f"Simulation completed. Final metrics: {final_metrics}") 
+             
+        except Exception as e: 
+            logger.error(f"Simulation failed: {str(e)}") 
+            raise 
+        finally: 
+            try: 
+                traci.close() 
+                logger.info("Simulation resources cleaned up") 
+            except: 
+                pass 
+ 
     def _evaluate_signal_timing(self, params):
+        """Evaluate signal timing parameters using comprehensive metrics."""
         try:
             base_green_time, demand_weight, queue_weight = params
-            total_score = 0.0; total_signals = 0
+            total_score = 0.0
+            total_signals = 0
+            
             for tls_id in traci.trafficlight.getIDList():
                 signal_score = 0.0
                 controlled_lanes = traci.trafficlight.getControlledLanes(tls_id)
-                if not controlled_lanes: continue
+                
+                if not controlled_lanes:
+                    continue
+                    
                 total_signals += 1
                 current_phase = traci.trafficlight.getPhase(tls_id)
-                phase_metrics = defaultdict(lambda: {'queue_length':0,'waiting_time':0,'flow_rate':0,'stopped_vehicles':0,'throughput':0,'delay':0})
+                phase_duration = traci.trafficlight.getPhaseDuration(tls_id)
+                
+                # Track metrics per phase
+                phase_metrics = defaultdict(lambda: {
+                    'queue_length': 0,
+                    'waiting_time': 0,
+                    'flow_rate': 0,
+                    'stopped_vehicles': 0,
+                    'throughput': 0,
+                    'delay': 0
+                })
+                
+                # Collect metrics for all controlled lanes
                 for lane_id in controlled_lanes:
                     try:
-                        queue_length = traci.lane.getLastStepHaltingNumber(lane_id); waiting_time = traci.lane.getWaitingTime(lane_id); mean_speed = traci.lane.getLastStepMeanSpeed(lane_id); vehicle_count = traci.lane.getLastStepVehicleNumber(lane_id)
-                        lane_vehicles = traci.lane.getLastStepVehicleIDs(lane_id); stopped_count = sum(1 for vid in lane_vehicles if traci.vehicle.getSpeed(vid) < 0.1); total_delay = sum(traci.vehicle.getAccumulatedWaitingTime(vid) for vid in lane_vehicles)
-                        edge_id = lane_id.split('_')[0]; throughput = self.traffic_metrics[edge_id].flow_rate if edge_id in self.traffic_metrics else 0
-                        phase_metrics[current_phase]['queue_length'] += queue_length; phase_metrics[current_phase]['waiting_time'] += waiting_time; phase_metrics[current_phase]['flow_rate'] += vehicle_count * mean_speed; phase_metrics[current_phase]['stopped_vehicles'] += stopped_count; phase_metrics[current_phase]['throughput'] += throughput; phase_metrics[current_phase]['delay'] += total_delay
-                    except Exception as e: logger.warning(f"Error collecting metrics for lane {lane_id}: {str(e)}")
+                        # Get lane metrics
+                        queue_length = traci.lane.getLastStepHaltingNumber(lane_id)
+                        waiting_time = traci.lane.getWaitingTime(lane_id)
+                        mean_speed = traci.lane.getLastStepMeanSpeed(lane_id)
+                        vehicle_count = traci.lane.getLastStepVehicleNumber(lane_id)
+                        occupancy = traci.lane.getLastStepOccupancy(lane_id)
+                        
+                        # Get vehicles on the lane
+                        lane_vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+                        
+                        # Calculate additional metrics
+                        stopped_count = sum(1 for vid in lane_vehicles if traci.vehicle.getSpeed(vid) < 0.1)
+                        total_delay = sum(traci.vehicle.getAccumulatedWaitingTime(vid) for vid in lane_vehicles)
+                        
+                        # Calculate throughput (vehicles that have passed through)
+                        lane = self.net.getLane(lane_id)
+                        edge_id = lane_id.split('_')[0]
+                        if edge_id in self.traffic_metrics:
+                            throughput = self.traffic_metrics[edge_id].flow_rate
+                        else:
+                            throughput = 0
+                        
+                        # Update phase metrics
+                        phase_metrics[current_phase]['queue_length'] += queue_length
+                        phase_metrics[current_phase]['waiting_time'] += waiting_time
+                        phase_metrics[current_phase]['flow_rate'] += vehicle_count * mean_speed
+                        phase_metrics[current_phase]['stopped_vehicles'] += stopped_count
+                        phase_metrics[current_phase]['throughput'] += throughput
+                        phase_metrics[current_phase]['delay'] += total_delay
+                        
+                    except Exception as e:
+                        logger.warning(f"Error collecting metrics for lane {lane_id}: {str(e)}")
+                        continue
+                
+                # Calculate phase-specific scores
                 for phase, metrics in phase_metrics.items():
-                    norm_queue = metrics['queue_length'] / max(1, len(controlled_lanes)); norm_wait = metrics['waiting_time'] / max(1, metrics['flow_rate']); norm_stopped = metrics['stopped_vehicles'] / max(1, len(controlled_lanes)); norm_delay = metrics['delay'] / max(1, metrics['throughput'])
-                    efficiency = (metrics['flow_rate'] / metrics['throughput']) * (1 - norm_queue) if metrics['throughput'] > 0 else 0
-                    phase_score = norm_queue * queue_weight * 2.0 + norm_wait * demand_weight * 1.5 + norm_stopped * 1.2 + norm_delay * 1.3 + (1 - efficiency) * 1.5
+                    # Normalize metrics
+                    norm_queue = metrics['queue_length'] / max(1, len(controlled_lanes))
+                    norm_wait = metrics['waiting_time'] / max(1, metrics['flow_rate'])
+                    norm_stopped = metrics['stopped_vehicles'] / max(1, len(controlled_lanes))
+                    norm_delay = metrics['delay'] / max(1, metrics['throughput'])
+                    
+                    # Calculate phase efficiency
+                    if metrics['throughput'] > 0:
+                        efficiency = (metrics['flow_rate'] / metrics['throughput']) * (1 - norm_queue)
+                    else:
+                        efficiency = 0
+                    
+                    # Combine metrics with weights
+                    phase_score = (
+                        norm_queue * queue_weight * 2.0 +          # Higher weight for queues
+                        norm_wait * demand_weight * 1.5 +         # Weight waiting time by demand
+                        norm_stopped * 1.2 +                      # Penalty for stopped vehicles
+                        norm_delay * 1.3 +                        # Penalty for delays
+                        (1 - efficiency) * 1.5                    # Reward efficiency
+                    )
+                    
                     signal_score += phase_score
+                
+                # Add coordination penalty
                 if len(traci.trafficlight.getIDList()) > 1:
                     for other_tls in traci.trafficlight.getIDList():
                         if other_tls != tls_id:
                             try:
                                 distance = self._get_signal_distance(tls_id, other_tls)
-                                if distance < 300:
-                                    phase_diff = abs(current_phase - traci.trafficlight.getPhase(other_tls)); signal_score += phase_diff * (1 - distance / 300) * 0.5
-                            except: pass
-                if base_green_time < self.MIN_GREEN_TIME * 1.2: signal_score *= 1.5
-                elif base_green_time > self.MAX_GREEN_TIME * 0.8: signal_score *= 1.3
+                                if distance < 300:  # Only consider nearby signals
+                                    other_phase = traci.trafficlight.getPhase(other_tls)
+                                    phase_diff = abs(current_phase - other_phase)
+                                    
+                                    # Calculate coordination score based on phase difference
+                                    coord_score = phase_diff * (1 - (distance / 300))
+                                    signal_score += coord_score * 0.5  # Reduced weight for coordination
+                            except:
+                                continue
+                
+                # Add timing penalties
+                if base_green_time < self.MIN_GREEN_TIME * 1.2:  # Too short
+                    signal_score *= 1.5
+                elif base_green_time > self.MAX_GREEN_TIME * 0.8:  # Too long
+                    signal_score *= 1.3
+                
                 total_score += signal_score
-            final_score = total_score / max(1, total_signals); final_score *= random.uniform(0.98, 1.02)
+            
+            # Normalize final score
+            final_score = total_score / max(1, total_signals)
+            
+            # Add small random variation to prevent identical scores
+            variation = random.uniform(0.98, 1.02)
+            final_score *= variation
+            
             return final_score if final_score > 0 else float('inf')
+            
         except Exception as e:
-            logger.error(f"Signal timing evaluation failed: {str(e)}"); return float('inf')
-
+            logger.error(f"Signal timing evaluation failed: {str(e)}")
+            return float('inf')
+ 
     def _get_signal_distance(self, tls1_id: str, tls2_id: str) -> float:
+        """Calculate distance between two traffic signals."""
         try:
-            pos1 = traci.junction.getPosition(tls1_id); pos2 = traci.junction.getPosition(tls2_id)
+            pos1 = traci.junction.getPosition(tls1_id)
+            pos2 = traci.junction.getPosition(tls2_id)
             return np.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
-        except: return float('inf')
-
+        except:
+            return float('inf')
+ 
     def _evaluate_speed_control(self, params):
+        """Evaluate speed control parameters using actual TraCI metrics."""
         try:
-            density_weight, queue_weight, gap_weight, min_speed_factor = params; score = 0.0
+            density_weight, queue_weight, gap_weight, min_speed_factor = params
+            score = 0.0
+            
             for edge_id in traci.edge.getIDList():
-                if edge_id.startswith(':'): continue
+                if edge_id.startswith(':'):  # Skip internal edges
+                    continue
+                    
                 try:
-                    vehicle_count = traci.edge.getLastStepVehicleNumber(edge_id); mean_speed = traci.edge.getLastStepMeanSpeed(edge_id); occupancy = traci.edge.getLastStepOccupancy(edge_id); edge = self.net.getEdge(edge_id); speed_limit = edge.getSpeed(); queue_length = sum(traci.lane.getLastStepHaltingNumber(l.getID()) for l in edge.getLanes()); edge_length = edge.getLength(); density = vehicle_count / edge_length if edge_length > 0 else 0; density_score = density * density_weight if density >= 0 else 0; queue_score = queue_length * queue_weight if queue_length >= 0 else 0; speed_score = (1.0 - mean_speed / speed_limit) * gap_weight if speed_limit > 0 and mean_speed >= 0 else 0; edge_score = density_score + queue_score + speed_score + occupancy * 0.5; score += max(0, edge_score)
-                except (ValueError, ZeroDivisionError, AttributeError) as e: logger.warning(f"Error processing edge {edge_id}: {str(e)}")
+                    # Get actual edge metrics from TraCI using correct methods
+                    vehicle_count = traci.edge.getLastStepVehicleNumber(edge_id)
+                    mean_speed = traci.edge.getLastStepMeanSpeed(edge_id)
+                    occupancy = traci.edge.getLastStepOccupancy(edge_id)
+                    
+                    # Get speed limit from net file instead of TraCI
+                    edge = self.net.getEdge(edge_id)
+                    speed_limit = edge.getSpeed()
+                    
+                    # Get queue length from lanes
+                    queue_length = 0
+                    lanes = edge.getLanes()
+                    for lane in lanes:
+                        lane_id = lane.getID()
+                        queue_length += traci.lane.getLastStepHaltingNumber(lane_id)
+                    
+                    # Calculate density using actual edge length
+                    edge_length = edge.getLength()
+                    density = vehicle_count / edge_length if edge_length > 0 else 0
+                    
+                    # Calculate score components with safety checks
+                    density_score = density * density_weight if density >= 0 else 0
+                    queue_score = queue_length * queue_weight if queue_length >= 0 else 0
+                    speed_score = (1.0 - (mean_speed / speed_limit)) * gap_weight if speed_limit > 0 and mean_speed >= 0 else 0
+                    
+                    # Combine metrics into score (lower is better)
+                    edge_score = (
+                        density_score +
+                        queue_score +
+                        speed_score +
+                        occupancy * 0.5  # Additional occupancy penalty
+                    )
+                    
+                    score += max(0, edge_score)  # Ensure non-negative score
+                    
+                except (ValueError, ZeroDivisionError, AttributeError) as e:
+                    logger.warning(f"Error processing edge {edge_id}: {str(e)}")
+                    continue
+            
             return score if score > 0 else float('inf')
-        except Exception as e: logger.error(f"Speed control evaluation failed: {str(e)}"); return float('inf')
-
+            
+        except Exception as e:
+            logger.error(f"Speed control evaluation failed: {str(e)}")
+            return float('inf')
+ 
     def _evaluate_routing_strategy(self, params):
+        """Evaluate routing strategy parameters using actual TraCI metrics."""
         try:
-            travel_time_weight, queue_delay_weight, congestion_penalty_weight, hist_congestion_weight = params; score = 0.0
+            travel_time_weight, queue_delay_weight, congestion_penalty_weight, hist_congestion_weight = params
+            score = 0.0
+            
             for vehicle_id in traci.vehicle.getIDList():
                 try:
-                    score += traci.vehicle.getWaitingTime(vehicle_id) + traci.vehicle.getTimeLoss(vehicle_id)
-                except: continue
+                    # Get actual vehicle metrics from TraCI
+                    waiting_time = traci.vehicle.getWaitingTime(vehicle_id)
+                    time_loss = traci.vehicle.getTimeLoss(vehicle_id)
+                    speed = traci.vehicle.getSpeed(vehicle_id)
+                    
+                    # Get current edge metrics
+                    current_edge = traci.vehicle.getRoadID(vehicle_id)
+                    if current_edge and not current_edge.startswith(':'):
+                        try:
+                            edge = self.net.getEdge(current_edge)
+                            edge_occupancy = traci.edge.getLastStepOccupancy(current_edge)
+                            edge_queue = 0
+                            
+                            # Sum up queue lengths for all lanes
+                            for lane in edge.getLanes():
+                                lane_id = lane.getID()
+                                edge_queue += traci.lane.getLastStepHaltingNumber(lane_id)
+                            
+                            speed_limit = edge.getSpeed()
+                            
+                            # Calculate score components with safety checks
+                            waiting_score = waiting_time * queue_delay_weight if waiting_time >= 0 else 0
+                            time_loss_score = time_loss * travel_time_weight if time_loss >= 0 else 0
+                            congestion_score = edge_occupancy * congestion_penalty_weight if edge_occupancy >= 0 else 0
+                            queue_score = edge_queue * 0.5 if edge_queue >= 0 else 0
+                            
+                            # Speed penalty for slow vehicles with safety check
+                            speed_penalty = (1.0 - (speed / speed_limit)) * 0.3 if speed_limit > 0 and speed >= 0 else 0
+                            
+                            # Combine metrics into score (lower is better)
+                            vehicle_score = (
+                                waiting_score +
+                                time_loss_score +
+                                congestion_score +
+                                queue_score +
+                                speed_penalty
+                            )
+                            
+                            score += max(0, vehicle_score)  # Ensure non-negative score
+                            
+                        except (ValueError, ZeroDivisionError, AttributeError) as e:
+                            logger.warning(f"Error processing edge {current_edge} for vehicle {vehicle_id}: {str(e)}")
+                            continue
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to evaluate vehicle {vehicle_id}: {str(e)}")
+                    continue
+            
             return score if score > 0 else float('inf')
-        except Exception as e: logger.error(f"Routing strategy evaluation failed: {str(e)}"); return float('inf')
-
-    def _optimize_traffic_signals(self):
+            
+        except Exception as e:
+            logger.error(f"Routing strategy evaluation failed: {str(e)}")
+            return float('inf')
+ 
+    def calculate_shortest_route(self, from_edge: str, to_edge: str) -> List[str]:
+        """Calculate shortest route between two edges using NetworkX and validate for SUMO."""
         try:
-            if not self.signal_states: self._initialize_traffic_signals()
-            if self.signal_pso:
-                best_params, _ = self.signal_pso.optimize(self.PSO_ITERATIONS)
-                for tls_id in self.signal_states:
-                    self.signal_states[tls_id]['optimal_params'] = best_params.copy()
-        except Exception as e: logger.error(f"Traffic signal optimization failed: {str(e)}")
-
-    def _optimize_speed_limits(self):
+            # Verify edges exist and are valid for vehicles
+            from_edge_obj = self.net.getEdge(from_edge)
+            to_edge_obj = self.net.getEdge(to_edge)
+            
+            if not from_edge_obj or not to_edge_obj:
+                raise ValueError(f"Invalid edge IDs: {from_edge} or {to_edge}")
+                
+            # Check if edges allow passenger vehicles
+            if not self._is_edge_allowed(from_edge_obj) or not self._is_edge_allowed(to_edge_obj):
+                raise ValueError(f"Edges {from_edge} or {to_edge} do not allow passenger vehicles")
+ 
+            # Get nodes corresponding to edges
+            from_node = from_edge_obj.getToNode().getID()
+            to_node = to_edge_obj.getFromNode().getID()
+            
+            # Find shortest path using NetworkX with custom weight function
+            try:
+                path = nx.shortest_path(
+                    self.network_graph, 
+                    from_node, 
+                    to_node, 
+                    weight=lambda u, v, d: self._calculate_edge_weight(u, v, d)
+                )
+                
+                # Convert node path to edge path and validate connections
+                edges = []
+                for i in range(len(path) - 1):
+                    edge_data = self.network_graph[path[i]][path[i + 1]]
+                    edge_id = edge_data['edge_id']
+                    edge = self.net.getEdge(edge_id)
+                    
+                    # Skip if edge doesn't allow vehicles
+                    if not self._is_edge_allowed(edge):
+                        continue
+                        
+                    # Verify connection to next edge
+                    if edges and not self._verify_edge_connection(edges[-1], edge_id):
+                        raise ValueError(f"No valid connection between edges {edges[-1]} and {edge_id}")
+                        
+                    edges.append(edge_id)
+                
+                # Verify connection to final edge
+                if edges and not self._verify_edge_connection(edges[-1], to_edge):
+                    raise ValueError(f"No valid connection to destination edge {to_edge}")
+                
+                # Add final destination edge
+                edges.append(to_edge)
+                
+                # Validate complete route using SUMO's route check
+                if not self._validate_route(edges):
+                    raise ValueError("Invalid route: edges are not properly connected")
+                
+                return edges
+                
+            except nx.NetworkXNoPath:
+                raise ValueError(f"No route found between {from_edge} and {to_edge}")
+                
+        except Exception as e:
+            logger.error(f"Route calculation failed: {str(e)}")
+            raise
+ 
+    def _is_edge_allowed(self, edge) -> bool:
+        """Check if edge allows passenger vehicles."""
         try:
-            if self.speed_control_pso is None: self._initialize_speed_control_pso()
-            best_params, _ = self.speed_control_pso.optimize(self.PSO_ITERATIONS)
-            for edge_id in traci.edge.getIDList():
-                if edge_id.startswith(':'): continue
-                try:
-                    congestion = self._predict_congestion(edge_id); speed_factor = max(best_params[3], 1.0 - (0.5 * congestion + 0.4 * 0 + 0.3 * 0 + 0.2 * 0)); edge = self.net.getEdge(edge_id); new_speed = edge.getSpeed() * speed_factor; traci.edge.setMaxSpeed(edge_id, new_speed)
-                except Exception: continue
-        except Exception as e: logger.error(f"Speed limit optimization failed: {str(e)}")
-
-    def _optimize_routing(self):
+            # Check if edge allows passenger vehicles
+            allowed = edge.allows("passenger")
+            
+            # Additional checks for edge validity
+            if edge.getFunction() in ["internal", "connector"]:
+                return False
+                
+            # Check if edge has lanes
+            if len(edge.getLanes()) == 0:
+                return False
+                
+            return allowed
+        except Exception as e:
+            logger.warning(f"Error checking edge permissions: {str(e)}")
+            return False
+ 
+    def _calculate_edge_weight(self, u, v, edge_data) -> float:
+        """Calculate edge weight considering various factors."""
         try:
-            if self.route_pso is None: self._initialize_route_pso()
-            best_params, _ = self.route_pso.optimize(self.PSO_ITERATIONS)
-            for vehicle_id in traci.vehicle.getIDList():
-                try:
-                    route = traci.vehicle.getRoute(vehicle_id)
-                    if not route: continue
-                    if any(self._predict_congestion(e) > self.ADAPTIVE_ROUTING_THRESHOLD for e in route):
-                        self._reroute_vehicle(vehicle_id, best_params)
-                except Exception: continue
-        except Exception as e: logger.error(f"Routing optimization failed: {str(e)}")
-
-    def _reroute_vehicle(self, vehicle_id, params):
+            edge_id = edge_data['edge_id']
+            edge = self.net.getEdge(edge_id)
+            
+            if not self._is_edge_allowed(edge):
+                return float('inf')
+            
+            # Base weight is edge length
+            weight = edge_data['length']
+            
+            # Add penalties for various factors
+            if edge.getSpeed() < 8.0:  # Slow edges
+                weight *= 1.5
+                
+            if len(edge.getLanes()) == 1:  # Single-lane roads
+                weight *= 1.2
+                
+            # Add congestion penalty if available
+            if edge_id in self.traffic_metrics:
+                metrics = self.traffic_metrics[edge_id]
+                if metrics.congestion_index > 0.7:
+                    weight *= (1 + metrics.congestion_index)
+            
+            return weight
+            
+        except Exception as e:
+            logger.warning(f"Error calculating edge weight: {str(e)}")
+            return float('inf')
+ 
+    def _validate_route(self, edges: List[str]) -> bool:
+        """Validate complete route using SUMO's route check."""
         try:
-            current_edge = traci.vehicle.getRoadID(vehicle_id); destination = traci.vehicle.getRoute(vehicle_id)[-1]
-            route = traci.simulation.findRoute(current_edge, destination).edges
-            if route: traci.vehicle.setRoute(vehicle_id, route)
-        except Exception as e: logger.warning(f"Rerouting failed for vehicle {vehicle_id}: {str(e)}")
-
+            # Check if route has at least start and end
+            if len(edges) < 2:
+                return False
+                
+            # Verify each pair of consecutive edges
+            for i in range(len(edges) - 1):
+                edge1 = self.net.getEdge(edges[i])
+                edge2 = self.net.getEdge(edges[i + 1])
+                
+                # Check if edges are connected
+                connections = edge1.getConnections(edge2)
+                if not connections:
+                    logger.warning(f"No connection between edges {edges[i]} and {edges[i + 1]}")
+                    return False
+                    
+                # Verify connection allows passenger vehicles
+                for conn in connections:
+                    if conn.getFrom().allows("passenger") and conn.getTo().allows("passenger"):
+                        break
+                else:
+                    logger.warning(f"No valid connection for passenger vehicles between {edges[i]} and {edges[i + 1]}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Route validation failed: {str(e)}")
+            return False
+ 
+    def _add_route_to_file(self, vehicle_id: str, edges: List[str]):
+        """Add new route to the route file at the beginning."""
+        try:
+            from xml.etree import ElementTree as ET
+            import random
+            
+            logger.info(f"Adding new route for vehicle {vehicle_id}")
+            
+            # Read existing route file
+            tree = ET.parse(self.route_file)
+            root = tree.getroot()
+            
+            # Check if vtypes are already defined
+            vtype_exists = False
+            for child in root:
+                if child.tag == 'vType' and child.get('id') == 'passenger':
+                    vtype_exists = True
+                    break
+            
+            # Add vType definition if it doesn't exist
+            if not vtype_exists:
+                vtype_element = ET.Element("vType", {
+                    "id": "passenger",
+                    "accel": "2.6",
+                    "decel": "4.5",
+                    "sigma": "0.5",
+                    "length": "5.0",
+                    "minGap": "2.5",
+                    "maxSpeed": "70.0",
+                    "speedDev": "0.1",
+                    "vClass": "passenger",
+                    "guiShape": "passenger",
+                    "color": "1,1,0"  # Yellow color for visibility
+                })
+                # Insert vType at the beginning of the file
+                root.insert(0, vtype_element)
+            
+            # Generate random ID between 1 and 100000
+            random_id = str(0)
+            while any(vehicle.get('id') == random_id for vehicle in root.findall('vehicle')):
+                random_id = str(random.randint(1000, 100000))
+            
+            logger.info(f"Generated random vehicle ID: {random_id}")
+            
+            # Create new route element
+            route_element = ET.Element("route", {
+                "edges": " ".join(edges),
+                "color": "1,1,0"  # Match vehicle color
+            })
+            
+            # Create vehicle element with improved attributes
+            vehicle_element = ET.Element("vehicle", {
+                "id": random_id,
+                "type": "passenger",
+                "depart": "1.00",
+                "departSpeed": "max",
+                "departLane": "best",
+                "departPos": "base",  # Add departure position
+                "arrivalPos": "max",  # Add arrival position
+                "speedFactor": "1.0"  # Add speed factor
+            })
+            
+            # Add route element as child of vehicle element
+            vehicle_element.append(route_element)
+            
+            # Insert vehicle element at the beginning, after vType and any non-vehicle elements
+            insert_index = 0
+            for i, child in enumerate(root):
+                if child.tag == 'vehicle':
+                    insert_index = i
+                    break
+            root.insert(insert_index, vehicle_element)
+            
+            # Write back to file with proper formatting
+            tree.write(self.route_file, encoding='utf-8', xml_declaration=True)
+            
+            logger.info(f"Successfully wrote vehicle {random_id} to route file with {len(edges)} edges")
+            
+            return random_id
+            
+        except Exception as e:
+            logger.error(f"Failed to update route file: {str(e)}")
+            raise
+ 
+    def add_vehicle_to_simulation(self, from_edge: str, to_edge: str) -> Dict[str, Any]:
+        try:
+            # Verify edge connection before calculating route
+            if not self._verify_edge_connection(from_edge, to_edge):
+                raise ValueError(f"No valid connection between {from_edge} and {to_edge}")
+            
+            # Calculate route
+            route = self.calculate_shortest_route(from_edge, to_edge)
+            logger.info(f"Found route with {len(route)} edges: {' -> '.join(route)}")
+            
+            # Add route to route file and get random vehicle ID
+            vehicle_id = self._add_route_to_file(None, route)
+            logger.info(f"Successfully added vehicle {vehicle_id} to route file")
+            
+            # Update driver assistance with new vehicle ID
+            self.driver_assistance = DriverAssistance(vehicle_id)
+            
+            # Initialize updates tracking for this vehicle
+            self.vehicle_updates[vehicle_id] = []
+            
+            return {
+                "status": "success",
+                "vehicle_id": vehicle_id,
+                "route_length": len(route),
+                "route": route
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to add vehicle: {str(e)}")
+            raise
+ 
+    def _verify_edge_connection(self, from_edge: str, to_edge: str) -> bool:
+        """Verify that there exists a valid path between two edges."""
+        try:
+            # Get nodes corresponding to edges
+            from_node = self.net.getEdge(from_edge).getToNode().getID()
+            to_node = self.net.getEdge(to_edge).getFromNode().getID()
+            
+            # Check if path exists using NetworkX
+            return nx.has_path(self.network_graph, from_node, to_node)
+        except Exception as e:
+            logger.error(f"Error verifying edge connection: {str(e)}")
+            return False
+ 
+    def get_vehicle_updates(self, vehicle_id: str) -> Dict[str, Any]:
+        """Get updates for a specific vehicle."""
+        try:
+            if vehicle_id not in self.vehicle_states:
+                return {"status": "not_found"}
+            
+            state = self.vehicle_states[vehicle_id]
+            return {
+                "status": "active",
+                "position": state.position,
+                "speed": state.speed,
+                "current_edge": state.current_edge,
+                "waiting_time": state.waiting_time,
+                "route_progress": traci.vehicle.getRouteIndex(vehicle_id) if self.simulation_running else 0
+            }
+            
+        except traci.exceptions.TraCIException:
+            return {"status": "completed"}
+        except Exception as e:
+            logger.error(f"Error getting vehicle updates: {str(e)}")
+            return {"status": "error", "message": str(e)}
+ 
     def start_simulation(self):
+        """Start SUMO simulation with GUI."""
+        if self.simulation_running:
+            return {"status": "error", "message": "Simulation already running"}
+        
         try:
-            sumo_binary = 'sumo-gui' if self.sumo_config.get('gui', True) else 'sumo'
-            sumo_cmd = [sumo_binary, '-c', self.sumo_config['config_file']]
-            traci.start(sumo_cmd); self.traci_started = True; self._initialize_traffic_signals(); return {'status':'success','message':'Simulation started'}
-        except Exception as e: logger.error(f"Simulation start failed: {str(e)}"); raise
-
-    def add_vehicle_to_simulation(self, from_edge: str, to_edge: str):
+            if not self.traci_started:  # Only start TraCI if not already started
+                # Initialize SUMO with GUI
+                sumo_binary = sumolib.checkBinary('sumo-gui')
+                sumo_cmd = [
+                    sumo_binary,
+                    '-c', self.sumo_config['config_file'],
+                    '--net-file', self.sumo_config['net_file'],
+                    '--route-files', self.sumo_config['route_file'],
+                    '--time-to-teleport', '-1',
+                    '--waiting-time-memory', '10000',
+                    '--device.emissions.probability', '1.0',
+                    '--device.rerouting.probability', '1.0',
+                    '--device.rerouting.period', '20',
+                    '--step-length', '1.0',
+                    '--collision.action', 'warn',
+                    '--lateral-resolution', '0.1',
+                    '--no-step-log', 'true',
+                    '--no-warnings', 'true',
+                    '--start', 'false'  # Start paused
+                ]
+                
+                # Start SUMO
+                traci.start(sumo_cmd)
+                self.traci_started = True
+                
+                # Initialize traffic signals
+                self._initialize_traffic_signals()
+            
+            # Start simulation in a separate thread
+            self.simulation_running = True
+            self.simulation_thread = threading.Thread(target=self.run_simulation)
+            self.simulation_thread.start()
+            
+            return {"status": "success", "message": "Simulation started successfully"}
+            
+        except Exception as e:
+            logger.error(f"Failed to start simulation: {str(e)}")
+            if 'already active' in str(e):
+                try:
+                    traci.close()
+                    self.traci_started = False
+                    return self.start_simulation()  # Retry after closing
+                except:
+                    pass
+            return {"status": "error", "message": str(e)}
+ 
+    def get_driver_updates(self, vehicle_id: str) -> List[str]:
+        """Get the latest driver updates for a specific vehicle."""
         try:
-            vehicle_id = f"vehicle_{self.vehicle_counter}"; self.vehicle_counter += 1
-            route = nx.shortest_path(self.network_graph, self.net.getEdge(from_edge).getFromNode().getID(), self.net.getEdge(to_edge).getToNode().getID(), weight='length')
-            edge_route = [self.network_graph[u][v]['edge_id'] for u,v in zip(route[:-1], route[1:])]
-            if not edge_route: edge_route = [from_edge, to_edge]
-            return {'vehicle_id':vehicle_id,'route_length':len(edge_route),'route':edge_route}
-        except Exception as e: logger.error(f"Failed to add vehicle: {str(e)}"); raise
+            if not self.simulation_running:
+                return []
+                
+            if vehicle_id not in self.vehicle_states:
+                return []
+                
+            # Read the updates file
+            if not os.path.exists(self.updates_file):
+                return []
+                
+            updates = []
+            current_updates = []
+            with open(self.updates_file, 'r') as f:
+                lines = f.readlines()
+                for line in lines:
+                    if line.startswith('['):  # New timestamp
+                        if current_updates:
+                            updates.append(current_updates)
+                        current_updates = [line.strip()]
+                    else:
+                        current_updates.append(line.strip())
+                        
+            if current_updates:
+                updates.append(current_updates)
+                
+            # Return the most recent update
+            return updates[-1] if updates else []
+            
+        except Exception as e:
+            logger.error(f"Error getting driver updates: {str(e)}")
+            return []
