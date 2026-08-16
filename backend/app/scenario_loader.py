@@ -31,6 +31,18 @@ class ScenarioConfig:
     PSO_ITERATIONS: int = config.PSO_ITERATIONS
 
     @property
+    def config_file_path(self) -> str:
+        return self.config_file
+
+    @property
+    def net_file_path(self) -> str:
+        return self.net_file
+
+    @property
+    def route_file_path(self) -> str:
+        return self.route_file
+
+    @property
     def optimization_interval(self) -> int:
         return self.OPTIMIZATION_INTERVAL
 
@@ -91,6 +103,17 @@ class ScenarioConfig:
         return self.PSO_ITERATIONS
 
 
+def _deep_merge(default_dict: Dict[str, Any], override_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge override_dict on top of default_dict."""
+    result = dict(default_dict)
+    for key, val in override_dict.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
 def load_scenario(
     scenario_name: str,
     scenarios_dir: Optional[Union[str, Path]] = None
@@ -114,28 +137,16 @@ def load_scenario(
             f"Scenario '{scenario_name}' not found at {scenario_dir}"
         )
 
-    with open(scenario_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
+    try:
+        with open(scenario_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as err:
+        raise ValueError(f"Malformed YAML in scenario file '{scenario_path}': {err}")
 
-    # SUMO files resolution
-    sumo_data = data.get("sumo", {})
-    gui = sumo_data.get("gui", True)
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid scenario definition in '{scenario_path}': expected a dictionary/mapping.")
 
-    config_file_rel = sumo_data.get("config_file", "")
-    net_file_rel = sumo_data.get("net_file", "")
-    route_file_rel = sumo_data.get("route_file", "")
-
-    config_file_abs = str((scenario_dir / config_file_rel).resolve()) if config_file_rel else ""
-    net_file_abs = str((scenario_dir / net_file_rel).resolve()) if net_file_rel else ""
-    route_file_abs = str((scenario_dir / route_file_rel).resolve()) if route_file_rel else ""
-
-    sumo_config = {
-        "gui": gui,
-        "config_file": config_file_abs,
-        "net_file": net_file_abs,
-        "route_file": route_file_abs,
-    }
-
+    # Default parameters mapping
     params = {
         "OPTIMIZATION_INTERVAL": config.OPTIMIZATION_INTERVAL,
         "CONGESTION_THRESHOLDS": dict(config.CONGESTION_THRESHOLDS),
@@ -154,8 +165,38 @@ def load_scenario(
         "PSO_ITERATIONS": config.PSO_ITERATIONS,
     }
 
-    # Map keys case-insensitively
+    # Map supported lowercase and uppercase parameter keys
     key_map = {k.lower(): k for k in params.keys()}
+    allowed_keys = {"name", "sumo"}.union(key_map.keys()).union(params.keys())
+
+    # Validate unknown keys
+    unknown_keys = [k for k in data.keys() if k not in allowed_keys and k.lower() not in key_map]
+    if unknown_keys:
+        raise ValueError(
+            f"Unknown key(s) {unknown_keys} in scenario '{scenario_name}'. Allowed keys: {sorted(list(allowed_keys))}"
+        )
+
+    # SUMO files resolution
+    sumo_data = data.get("sumo", {})
+    if not isinstance(sumo_data, dict):
+        raise ValueError(f"Invalid 'sumo' section in scenario '{scenario_name}': expected dictionary.")
+
+    gui = sumo_data.get("gui", True)
+
+    config_file_rel = sumo_data.get("config_file", "")
+    net_file_rel = sumo_data.get("net_file", "")
+    route_file_rel = sumo_data.get("route_file", "")
+
+    config_file_abs = str((scenario_dir / config_file_rel).resolve()) if config_file_rel else ""
+    net_file_abs = str((scenario_dir / net_file_rel).resolve()) if net_file_rel else ""
+    route_file_abs = str((scenario_dir / route_file_rel).resolve()) if route_file_rel else ""
+
+    sumo_config = {
+        "gui": gui,
+        "config_file": config_file_abs,
+        "net_file": net_file_abs,
+        "route_file": route_file_abs,
+    }
 
     for yaml_key, yaml_val in data.items():
         if yaml_key in ("name", "sumo"):
@@ -163,7 +204,7 @@ def load_scenario(
         param_name = key_map.get(yaml_key.lower())
         if param_name and param_name in params:
             if isinstance(params[param_name], dict) and isinstance(yaml_val, dict):
-                params[param_name] = {**params[param_name], **yaml_val}
+                params[param_name] = _deep_merge(params[param_name], yaml_val)
             else:
                 params[param_name] = yaml_val
 

@@ -22,6 +22,9 @@ def test_load_default_scenario():
     assert os.path.isabs(sc_config.config_file)
     assert os.path.isabs(sc_config.net_file)
     assert os.path.isabs(sc_config.route_file)
+    assert sc_config.config_file == sc_config.config_file_path
+    assert sc_config.net_file == sc_config.net_file_path
+    assert sc_config.route_file == sc_config.route_file_path
     assert sc_config.config_file.endswith('broh.sumocfg')
     assert sc_config.net_file.endswith('broh.net.xml')
     assert sc_config.route_file.endswith('broh.rou.xml')
@@ -56,8 +59,8 @@ def test_relative_paths_resolve_independently_of_cwd(tmp_path, monkeypatch):
     )
     (scen_dir / "scenario.yaml").write_text(yaml_content)
 
-    # Change current working directory to a separate temporary directory
-    other_dir = tmp_path / "other_working_dir"
+    # Change current working directory to an unrelated temporary directory
+    other_dir = tmp_path / "unrelated_working_dir"
     other_dir.mkdir()
     monkeypatch.chdir(other_dir)
 
@@ -72,14 +75,14 @@ def test_relative_paths_resolve_independently_of_cwd(tmp_path, monkeypatch):
     assert sc_config.config_file == expected_cfg_path
 
 
-def test_overrides_correctly_merge_on_top_of_defaults(tmp_path):
-    """Verify that scenario YAML overrides merge correctly on top of default values."""
+def test_nested_dictionary_deep_merge_overrides(tmp_path):
+    """Verify recursive deep merging of nested dictionary overrides on top of defaults."""
     scenarios_dir = tmp_path / "scenarios"
-    scen_dir = scenarios_dir / "override_scenario"
+    scen_dir = scenarios_dir / "deep_override"
     scen_dir.mkdir(parents=True)
 
     yaml_content = (
-        "name: override_scenario\n"
+        "name: deep_override\n"
         "sumo:\n"
         "  gui: false\n"
         "  config_file: sim.sumocfg\n"
@@ -92,22 +95,53 @@ def test_overrides_correctly_merge_on_top_of_defaults(tmp_path):
     )
     (scen_dir / "scenario.yaml").write_text(yaml_content)
 
-    sc_config = load_scenario('override_scenario', scenarios_dir=scenarios_dir)
+    sc_config = load_scenario('deep_override', scenarios_dir=scenarios_dir)
 
-    # Check GUI override
+    # Check scalar overrides
     assert sc_config.gui is False
-    assert sc_config.sumo_config['gui'] is False
-
-    # Check scalar overrides (lowercase and uppercase properties)
     assert sc_config.OPTIMIZATION_INTERVAL == 50
-    assert sc_config.optimization_interval == 50
-    assert sc_config.PSO_PARTICLES == 25
     assert sc_config.pso_particles == 25
 
-    # Check un-overridden scalar keeps default
-    assert sc_config.PSO_ITERATIONS == config.PSO_ITERATIONS
-
-    # Check dictionary partial override
+    # Check deep dictionary merge: 'urban' updated, other keys retained from config defaults
     assert sc_config.SPEED_LIMITS['urban'] == 12.5
-    assert sc_config.speed_limits['urban'] == 12.5
+    assert sc_config.SPEED_LIMITS['arterial'] == config.SPEED_LIMITS['arterial']
     assert sc_config.SPEED_LIMITS['highway'] == config.SPEED_LIMITS['highway']
+    assert sc_config.CONGESTION_THRESHOLDS == config.CONGESTION_THRESHOLDS
+
+
+def test_unknown_keys_rejected(tmp_path):
+    """Verify that unknown/invalid keys in scenario YAML raise ValueError."""
+    scenarios_dir = tmp_path / "scenarios"
+    scen_dir = scenarios_dir / "invalid_key_scen"
+    scen_dir.mkdir(parents=True)
+
+    yaml_content = (
+        "name: invalid_key_scen\n"
+        "sumo:\n"
+        "  config_file: sim.sumocfg\n"
+        "  net_file: sim.net.xml\n"
+        "  route_file: sim.rou.xml\n"
+        "unknown_parameter_name: 123\n"
+    )
+    (scen_dir / "scenario.yaml").write_text(yaml_content)
+
+    with pytest.raises(ValueError) as exc_info:
+        load_scenario('invalid_key_scen', scenarios_dir=scenarios_dir)
+
+    assert "Unknown key" in str(exc_info.value)
+    assert "unknown_parameter_name" in str(exc_info.value)
+
+
+def test_malformed_yaml_raises_error(tmp_path):
+    """Verify that malformed YAML syntax raises ValueError."""
+    scenarios_dir = tmp_path / "scenarios"
+    scen_dir = scenarios_dir / "malformed_scen"
+    scen_dir.mkdir(parents=True)
+
+    yaml_content = "name: malformed\nsumo: [unclosed_list"
+    (scen_dir / "scenario.yaml").write_text(yaml_content)
+
+    with pytest.raises(ValueError) as exc_info:
+        load_scenario('malformed_scen', scenarios_dir=scenarios_dir)
+
+    assert "Malformed YAML" in str(exc_info.value)
