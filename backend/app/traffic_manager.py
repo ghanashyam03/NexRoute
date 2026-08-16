@@ -14,8 +14,9 @@ from scipy.stats import entropy
 import traci
 import sumolib
 
+from .scenario_loader import ScenarioConfig, load_scenario
 from .config import (
-    SUMO_CONFIG, OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
+    OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
     CONGESTION_HISTORY_SIZE, ADAPTIVE_ROUTING_THRESHOLD, MIN_GREEN_TIME,
     MAX_GREEN_TIME, YELLOW_TIME, ALL_RED_TIME, PSO_PARTICLES, PSO_ITERATIONS
@@ -27,37 +28,39 @@ from .driver_assistance import DriverAssistance
 logger = logging.getLogger(__name__)
 
 class AdvancedTrafficManager: 
-    def __init__(self): 
-        self.sumo_config = SUMO_CONFIG
-         
+    def __init__(self, scenario_config: Optional[ScenarioConfig] = None, seed: Optional[int] = None, headless: bool = False): 
+        if scenario_config is None:
+            scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
+
+        self.scenario_config = scenario_config
+        self.sumo_config = dict(scenario_config.sumo_config)
+        self.seed = seed
+        self.headless = headless
+
+        if headless:
+            self.scenario_config.gui = False
+            self.sumo_config['gui'] = False
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
         # System parameters with improved thresholds 
-        self.OPTIMIZATION_INTERVAL = OPTIMIZATION_INTERVAL
-        self.CONGESTION_THRESHOLDS = CONGESTION_THRESHOLDS
-         
-        # Speed limits with improved values 
-        self.SPEED_LIMITS = SPEED_LIMITS
-         
-        # PCU values with improved accuracy 
-        self.PCU_VALUES = PCU_VALUES
-         
-        # Priority weights with improved balance 
-        self.PRIORITY_WEIGHTS = PRIORITY_WEIGHTS
-         
-        # Traffic management parameters with improved values 
-        self.MAX_REROUTE_ATTEMPTS = MAX_REROUTE_ATTEMPTS
-        self.MIN_REROUTE_INTERVAL = MIN_REROUTE_INTERVAL
-        self.CONGESTION_HISTORY_SIZE = CONGESTION_HISTORY_SIZE
-        self.ADAPTIVE_ROUTING_THRESHOLD = ADAPTIVE_ROUTING_THRESHOLD
-         
-        # Signal timing parameters with improved values 
-        self.MIN_GREEN_TIME = MIN_GREEN_TIME
-        self.MAX_GREEN_TIME = MAX_GREEN_TIME
-        self.YELLOW_TIME = YELLOW_TIME
-        self.ALL_RED_TIME = ALL_RED_TIME
-         
-        # PSO parameters with improved values 
-        self.PSO_PARTICLES = PSO_PARTICLES
-        self.PSO_ITERATIONS = PSO_ITERATIONS
+        self.OPTIMIZATION_INTERVAL = scenario_config.OPTIMIZATION_INTERVAL
+        self.CONGESTION_THRESHOLDS = scenario_config.CONGESTION_THRESHOLDS
+        self.SPEED_LIMITS = scenario_config.SPEED_LIMITS
+        self.PCU_VALUES = scenario_config.PCU_VALUES
+        self.PRIORITY_WEIGHTS = scenario_config.PRIORITY_WEIGHTS
+        self.MAX_REROUTE_ATTEMPTS = scenario_config.MAX_REROUTE_ATTEMPTS
+        self.MIN_REROUTE_INTERVAL = scenario_config.MIN_REROUTE_INTERVAL
+        self.CONGESTION_HISTORY_SIZE = scenario_config.CONGESTION_HISTORY_SIZE
+        self.ADAPTIVE_ROUTING_THRESHOLD = scenario_config.ADAPTIVE_ROUTING_THRESHOLD
+        self.MIN_GREEN_TIME = scenario_config.MIN_GREEN_TIME
+        self.MAX_GREEN_TIME = scenario_config.MAX_GREEN_TIME
+        self.YELLOW_TIME = scenario_config.YELLOW_TIME
+        self.ALL_RED_TIME = scenario_config.ALL_RED_TIME
+        self.PSO_PARTICLES = scenario_config.PSO_PARTICLES
+        self.PSO_ITERATIONS = scenario_config.PSO_ITERATIONS
          
         # Initialize data structures 
         self.network_graph = nx.DiGraph() 
@@ -1599,8 +1602,9 @@ class AdvancedTrafficManager:
         
         try:
             if not self.traci_started:  # Only start TraCI if not already started
-                # Initialize SUMO with GUI
-                sumo_binary = sumolib.checkBinary('sumo-gui')
+                use_gui = self.sumo_config.get('gui', True) and not self.headless
+                sumo_binary_name = 'sumo-gui' if use_gui else 'sumo'
+                sumo_binary = sumolib.checkBinary(sumo_binary_name)
                 sumo_cmd = [
                     sumo_binary,
                     '-c', self.sumo_config['config_file'],
@@ -1618,6 +1622,8 @@ class AdvancedTrafficManager:
                     '--no-warnings', 'true',
                     '--start', 'false'  # Start paused
                 ]
+                if self.seed is not None:
+                    sumo_cmd.extend(['--seed', str(self.seed)])
                 
                 # Start SUMO
                 traci.start(sumo_cmd)
