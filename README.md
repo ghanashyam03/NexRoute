@@ -219,11 +219,29 @@ backend/
    ```bash
    pip install -r requirements.txt
    ```
-3. Run the Flask server:
+3. Run the backend server or CLI:
    ```bash
-   python run.py
+   python run.py [OPTIONS]
    ```
-   *The backend runs locally on `http://127.0.0.1:5000`.*
+   *The backend runs locally on `http://127.0.0.1:5000` when started in API mode.*
+
+#### Command Line Options
+* `--scenario NAME`: Scenario name to load from `backend/scenarios/` (default: `"default"`).
+* `--seed INT`: Random seed for Python, NumPy, and SUMO (default: `None`, random each run).
+* `--headless`: Force SUMO to launch in non-GUI mode (`sumo` binary instead of `sumo-gui`).
+* `--mode {api,batch}`: Execution mode: `api` starts Flask server, `batch` for scripted execution (default: `"api"`).
+
+#### CLI Usage Examples
+```bash
+# Display help and flag descriptions
+python run.py --help
+
+# Run interactive API server with scenario 'default', seed 42, in headless mode
+python run.py --scenario default --seed 42 --headless
+
+# Run batch mode
+python run.py --mode batch
+```
 
 ---
 
