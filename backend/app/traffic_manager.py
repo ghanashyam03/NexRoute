@@ -16,6 +16,7 @@ import sumolib
 
 from .scenario_loader import ScenarioConfig, load_scenario
 from .seeding import set_global_seed
+from .metrics_logger import RunMetricsLogger
 from .config import (
     OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
@@ -29,7 +30,14 @@ from .driver_assistance import DriverAssistance
 logger = logging.getLogger(__name__)
 
 class AdvancedTrafficManager: 
-    def __init__(self, scenario_config: Optional[ScenarioConfig] = None, seed: Optional[int] = None, headless: bool = False): 
+    def __init__(
+        self,
+        scenario_config: Optional[ScenarioConfig] = None,
+        seed: Optional[int] = None,
+        headless: bool = False,
+        output_dir: Optional[Union[str, Path]] = None,
+        run_id: Optional[str] = None
+    ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
 
@@ -43,6 +51,13 @@ class AdvancedTrafficManager:
             self.sumo_config['gui'] = False
 
         set_global_seed(seed)
+
+        self.metrics_logger = RunMetricsLogger(
+            run_id=run_id,
+            output_dir=output_dir,
+            scenario_name=self.scenario_config.name,
+            seed=self.seed
+        )
 
         # System parameters with improved thresholds 
         self.OPTIMIZATION_INTERVAL = scenario_config.OPTIMIZATION_INTERVAL
@@ -1025,6 +1040,9 @@ class AdvancedTrafficManager:
                     self._optimize_routing() 
                      
                     metrics = self._evaluate_system_performance() 
+                    if metrics:
+                        self.metrics_logger.log_step(current_time, metrics)
+                        self.metrics_logger.flush()
                  
                 # End simulation if all vehicles completed 
                 if len(self.vehicle_states) == 0 and traci.simulation.getMinExpectedNumber() == 0: 
@@ -1032,6 +1050,11 @@ class AdvancedTrafficManager:
                     break 
                      
             final_metrics = self._evaluate_system_performance() 
+            final_time = traci.simulation.getTime()
+            if final_metrics:
+                self.metrics_logger.log_step(final_time, final_metrics)
+                self.metrics_logger.flush()
+                self.metrics_logger.write_summary(final_metrics)
             logger.info(f"Simulation completed. Final metrics: {final_metrics}") 
              
         except Exception as e: 
