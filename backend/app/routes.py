@@ -18,10 +18,15 @@ scenario_config: Optional[ScenarioConfig] = None
 traffic_manager: Optional[AdvancedTrafficManager] = None
 
 
+from pathlib import Path
+from typing import Optional, Union
+
 def init_traffic_manager(
     scenario_name: str = 'default',
     seed: Optional[int] = None,
-    headless: bool = False
+    headless: bool = False,
+    output_dir: Optional[Union[str, Path]] = None,
+    run_id: Optional[str] = None
 ) -> AdvancedTrafficManager:
     """Initialize or reconfigure the traffic manager with specified scenario, seed, and headless options."""
     global traffic_manager, scenario_config
@@ -29,7 +34,9 @@ def init_traffic_manager(
     traffic_manager = AdvancedTrafficManager(
         scenario_config=scenario_config,
         seed=seed,
-        headless=headless
+        headless=headless,
+        output_dir=output_dir,
+        run_id=run_id
     )
     return traffic_manager
 
