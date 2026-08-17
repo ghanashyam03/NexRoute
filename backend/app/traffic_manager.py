@@ -7,7 +7,7 @@ import threading
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set, Any
+from typing import Dict, List, Tuple, Optional, Set, Any, Union
 import numpy as np
 import networkx as nx
 from scipy.stats import entropy
@@ -17,6 +17,8 @@ import sumolib
 from .scenario_loader import ScenarioConfig, load_scenario
 from .seeding import set_global_seed
 from .metrics_logger import RunMetricsLogger
+from .signal_strategies import SignalControlStrategy, WebsterSignalController, PSOSignalController
+from .routing_strategies import RoutingStrategy, StaticRoutingStrategy, AdaptiveRoutingStrategy
 from .config import (
     OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
@@ -36,7 +38,9 @@ class AdvancedTrafficManager:
         seed: Optional[int] = None,
         headless: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
-        run_id: Optional[str] = None
+        run_id: Optional[str] = None,
+        signal_strategy: Optional[Union[SignalControlStrategy, str]] = None,
+        routing_strategy: Optional[Union[RoutingStrategy, str]] = None
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -51,6 +55,38 @@ class AdvancedTrafficManager:
             self.sumo_config['gui'] = False
 
         set_global_seed(seed)
+
+        strategy_param = signal_strategy or getattr(scenario_config, 'signal_strategy', 'pso')
+        if isinstance(strategy_param, str):
+            strat_name = strategy_param.lower()
+            if strat_name == 'webster':
+                self.signal_strategy = WebsterSignalController(
+                    lost_time_per_phase=float(getattr(scenario_config, 'YELLOW_TIME', 4.0)),
+                    min_green=float(getattr(scenario_config, 'MIN_GREEN_TIME', 5.0)),
+                    max_green=float(getattr(scenario_config, 'MAX_GREEN_TIME', 100.0))
+                )
+            else:
+                self.signal_strategy = PSOSignalController(
+                    base_green_time=35.0,
+                    min_green=float(getattr(scenario_config, 'MIN_GREEN_TIME', 20.0)),
+                    max_green=float(getattr(scenario_config, 'MAX_GREEN_TIME', 100.0))
+                )
+        else:
+            self.signal_strategy = strategy_param
+
+        routing_param = routing_strategy or getattr(scenario_config, 'routing_strategy', 'adaptive')
+        if isinstance(routing_param, str):
+            r_name = routing_param.lower()
+            if r_name == 'static':
+                self.routing_strategy = StaticRoutingStrategy()
+            else:
+                self.routing_strategy = AdaptiveRoutingStrategy(
+                    adaptive_routing_threshold=scenario_config.ADAPTIVE_ROUTING_THRESHOLD,
+                    max_reroute_attempts=scenario_config.MAX_REROUTE_ATTEMPTS,
+                    min_reroute_interval=scenario_config.MIN_REROUTE_INTERVAL
+                )
+        else:
+            self.routing_strategy = routing_param
 
         self.metrics_logger = RunMetricsLogger(
             run_id=run_id,
@@ -526,100 +562,92 @@ class AdvancedTrafficManager:
             raise 
  
     def _optimize_traffic_signals(self): 
-        """Optimize traffic signals with improved proactive control."""
+        """Optimize traffic signals using the selected SignalControlStrategy."""
         try: 
-            if self.signal_pso is None: 
-                self._initialize_signal_pso() 
-            
             # Check if there are any traffic signals
             tls_list = traci.trafficlight.getIDList()
             if not tls_list:
                 logger.info("No traffic signals found in the network")
                 return
-            
-            # Run PSO optimization with more iterations 
-            best_params, best_score = self.signal_pso.optimize(5)  # Increased iterations 
-            
-            # Apply optimized parameters 
-            self._apply_signal_optimization(best_params) 
-            
-            logger.info(f"Signal optimization completed with score: {best_score:.2f}") 
-             
+
+            if isinstance(self.signal_strategy, PSOSignalController):
+                if self.signal_pso is None: 
+                    self._initialize_signal_pso() 
+                best_params, best_score = self.signal_pso.optimize(5)
+                self._apply_signal_optimization(best_params) 
+                logger.info(f"PSO signal optimization completed with score: {best_score:.2f}") 
+            else:
+                self._apply_signal_optimization(None)
+                logger.info(f"Signal control strategy ({self.signal_strategy.__class__.__name__}) applied")
+
         except Exception as e: 
             logger.error(f"Traffic signal optimization failed: {str(e)}")
  
-    def _apply_signal_optimization(self, params): 
-        """Apply signal optimization with improved proactive control."""
+    def _apply_signal_optimization(self, params=None): 
+        """Apply signal optimization using self.signal_strategy.compute_phase_durations()."""
         try: 
-            base_green_time, demand_weight, queue_weight = params 
-             
             for tls_id, signal_data in self.signal_states.items(): 
                 try:
-                    # Update optimal parameters 
-                    signal_data['optimal_params'] = params 
-                     
-                    # Calculate adaptive timing for each signal 
+                    if params:
+                        signal_data['optimal_params'] = params 
+
                     controlled_lanes = signal_data['controlled_lanes'] 
-                    
-                    # Get current program logic
-                    current_program = traci.trafficlight.getAllProgramLogics(tls_id)[0]  # Get first program
+                    current_program = traci.trafficlight.getAllProgramLogics(tls_id)[0]
                     phase_count = len(current_program.phases)
-                     
                     if phase_count == 0: 
                         continue 
-                     
-                    # Calculate phase durations with improved formula 
-                    new_phases = [] 
-                     
+
+                    phase_flows = []
+                    phase_demands = []
+                    phase_queues = []
+
                     for i, phase in enumerate(current_program.phases): 
                         state = phase.state 
-                         
+                        total_flow = 0.0 
                         total_demand = 0.0 
                         total_queue = 0.0 
-                        total_stops = 0.0 
-                        max_predicted_congestion = 0.0
-                         
+
                         for j, lane_id in enumerate(controlled_lanes): 
                             if j < len(state) and state[j] in ['g', 'G']: 
                                 edge_id = lane_id.split('_')[0] 
-                                 
                                 if edge_id in self.traffic_metrics: 
                                     metrics = self.traffic_metrics[edge_id] 
-                                    total_demand += metrics.flow_rate 
+                                    total_flow += metrics.flow_rate 
+                                    total_demand += metrics.volume 
                                     total_queue += metrics.queue_length 
-                                    total_stops += metrics.stop_count 
-                                    max_predicted_congestion = max(max_predicted_congestion, metrics.predicted_congestion)
-                         
-                        # Improved duration calculation with predicted congestion
-                        duration = ( 
-                            base_green_time +  
-                            (total_demand / 500) * demand_weight +  # Adjusted scaling 
-                            total_queue * queue_weight * 2.5 +      # Increased queue weight 
-                            total_stops * 2.0 +                     # Increased stop penalty
-                            max_predicted_congestion * 20.0         # Added predicted congestion impact
-                        ) 
-                         
-                        # Enforce min/max limits with improved bounds 
+
+                        phase_flows.append(total_flow)
+                        phase_demands.append(total_demand)
+                        phase_queues.append(total_queue)
+
+                    traffic_data = {
+                        'phase_flows': phase_flows,
+                        'phase_demands': phase_demands,
+                        'phase_queues': phase_queues,
+                        'params': params
+                    }
+
+                    durations = self.signal_strategy.compute_phase_durations(tls_id, traffic_data)
+
+                    new_phases = [] 
+                    for i, phase in enumerate(current_program.phases): 
+                        duration = durations[i] if i < len(durations) else phase.duration
                         duration = max(self.MIN_GREEN_TIME, min(self.MAX_GREEN_TIME, duration))
                         
-                        # Create new phase with optimized duration
                         new_phase = traci.trafficlight.Phase(
                             duration=duration,
-                            state=state,
+                            state=phase.state,
                             minDur=self.MIN_GREEN_TIME,
                             maxDur=self.MAX_GREEN_TIME
                         )
                         new_phases.append(new_phase)
-                     
-                    # Create new program with improved parameters 
+
                     new_program = traci.trafficlight.Logic( 
                         programID=current_program.programID,
                         type=current_program.type,
                         currentPhaseIndex=current_program.currentPhaseIndex,
                         phases=new_phases
                     ) 
-                     
-                    # Apply the new program 
                     traci.trafficlight.setProgramLogic(tls_id, new_program) 
                      
                     # Additional measures for high congestion
@@ -818,6 +846,10 @@ class AdvancedTrafficManager:
     def _optimize_routing(self): 
         """Optimize routing with improved vehicle selection and proactive rerouting."""
         try: 
+            if isinstance(self.routing_strategy, StaticRoutingStrategy):
+                logger.debug("Skipping route optimization - StaticRoutingStrategy active")
+                return
+
             # First check if simulation is running and there are vehicles
             if not self.simulation_running or not traci.vehicle.getIDList():
                 logger.debug("Skipping route optimization - simulation not running or no vehicles")
@@ -899,7 +931,9 @@ class AdvancedTrafficManager:
     def _apply_adaptive_routing(self, candidate_vehicles, params): 
         """Apply adaptive routing with improved edge weights and alternative routes."""
         try: 
-            travel_time_weight, queue_delay_weight, congestion_penalty_weight, hist_congestion_weight = params 
+            if isinstance(self.routing_strategy, AdaptiveRoutingStrategy):
+                self.routing_strategy.params = params
+
             current_time = traci.simulation.getTime() 
              
             # Calculate edge weights first to avoid recomputation
@@ -907,37 +941,22 @@ class AdvancedTrafficManager:
             for edge in self.net.getEdges(): 
                 edge_id = edge.getID() 
                 edge_length = edge.getLength() 
-                nominal_travel_time = edge_length / edge.getSpeed() 
+                edge_speed = edge.getSpeed()
+                edge_data = {'edge_id': edge_id, 'length': edge_length, 'speed': edge_speed}
                  
                 metrics = self.traffic_metrics.get(edge_id, TrafficMetrics()) 
-                 
-                # Heavily penalize edges with predicted congestion
-                congestion_multiplier = 5.0 if metrics.predicted_congestion > self.ADAPTIVE_ROUTING_THRESHOLD else 1.0
-                
-                # Improved travel time calculation with speed prediction
-                if metrics.avg_speed > 0: 
-                    current_travel_time = edge_length / metrics.avg_speed 
-                else: 
-                    current_travel_time = nominal_travel_time * (1 + metrics.congestion_index) 
-                 
-                # Enhanced queue delay estimation with exponential penalty
-                queue_delay = metrics.queue_length * 3.0 * queue_delay_weight * (1.2 ** metrics.queue_length)
-                 
-                # Improved congestion penalty using predicted congestion
-                congestion_penalty = (metrics.predicted_congestion ** 2.0) * edge_length * congestion_penalty_weight
-                 
-                # Historical congestion with improved decay 
                 hist_congestion = np.mean(self.edge_congestion_history[edge_id][-5:]) if self.edge_congestion_history[edge_id] else 0 
-                hist_factor = 1.0 + (hist_congestion * hist_congestion_weight * 0.5)
-                 
-                # Combined edge weight with improved balancing 
-                edge_weight = ( 
-                    current_travel_time * travel_time_weight + 
-                    queue_delay + 
-                    congestion_penalty + 
-                    metrics.stop_count * 3.0  # Increased stop penalty
-                ) * hist_factor * congestion_multiplier  # Apply congestion multiplier
-                 
+
+                metrics_dict = {
+                    'predicted_congestion': metrics.predicted_congestion,
+                    'avg_speed': metrics.avg_speed,
+                    'congestion_index': metrics.congestion_index,
+                    'queue_length': metrics.queue_length,
+                    'stop_count': metrics.stop_count,
+                    'hist_congestion': hist_congestion
+                }
+
+                edge_weight = self.routing_strategy.compute_edge_weight("", "", edge_data, metrics_dict)
                 edge_weights[edge_id] = max(0.1, edge_weight) 
  
             # Update edge travel times in SUMO
@@ -1405,7 +1424,7 @@ class AdvancedTrafficManager:
             return False
  
     def _calculate_edge_weight(self, u, v, edge_data) -> float:
-        """Calculate edge weight considering various factors."""
+        """Calculate edge weight using self.routing_strategy."""
         try:
             edge_id = edge_data['edge_id']
             edge = self.net.getEdge(edge_id)
@@ -1413,23 +1432,24 @@ class AdvancedTrafficManager:
             if not self._is_edge_allowed(edge):
                 return float('inf')
             
-            # Base weight is edge length
-            weight = edge_data['length']
-            
-            # Add penalties for various factors
-            if edge.getSpeed() < 8.0:  # Slow edges
-                weight *= 1.5
-                
-            if len(edge.getLanes()) == 1:  # Single-lane roads
-                weight *= 1.2
-                
-            # Add congestion penalty if available
-            if edge_id in self.traffic_metrics:
-                metrics = self.traffic_metrics[edge_id]
-                if metrics.congestion_index > 0.7:
-                    weight *= (1 + metrics.congestion_index)
-            
-            return weight
+            metrics = self.traffic_metrics.get(edge_id)
+            metrics_dict = {}
+            if metrics:
+                hist_congestion = np.mean(self.edge_congestion_history[edge_id][-5:]) if self.edge_congestion_history[edge_id] else 0
+                metrics_dict = {
+                    'predicted_congestion': getattr(metrics, 'predicted_congestion', 0.0),
+                    'avg_speed': getattr(metrics, 'avg_speed', 0.0),
+                    'congestion_index': getattr(metrics, 'congestion_index', 0.0),
+                    'queue_length': getattr(metrics, 'queue_length', 0.0),
+                    'stop_count': getattr(metrics, 'stop_count', 0.0),
+                    'hist_congestion': hist_congestion
+                }
+
+            full_edge_data = dict(edge_data)
+            full_edge_data['length'] = edge.getLength()
+            full_edge_data['speed'] = edge.getSpeed()
+
+            return self.routing_strategy.compute_edge_weight(u, v, full_edge_data, metrics_dict)
             
         except Exception as e:
             logger.warning(f"Error calculating edge weight: {str(e)}")
