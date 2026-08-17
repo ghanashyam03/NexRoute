@@ -1,10 +1,7 @@
 import sys
 import argparse
 import logging
-import random
-import traceback
-import numpy as np
-
+from app.seeding import set_global_seed
 from app.routes import app, init_traffic_manager
 
 logger = logging.getLogger(__name__)
@@ -43,13 +40,11 @@ def parse_args(args=None):
 def main(args=None):
     parsed_args = parse_args(args)
 
+    set_global_seed(parsed_args.seed)
+
     if parsed_args.mode == "batch":
         print("batch mode not yet implemented")
         sys.exit(0)
-
-    if parsed_args.seed is not None:
-        random.seed(parsed_args.seed)
-        np.random.seed(parsed_args.seed)
 
     init_traffic_manager(
         scenario_name=parsed_args.scenario,

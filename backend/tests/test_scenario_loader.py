@@ -25,9 +25,9 @@ def test_load_default_scenario():
     assert sc_config.config_file == sc_config.config_file_path
     assert sc_config.net_file == sc_config.net_file_path
     assert sc_config.route_file == sc_config.route_file_path
-    assert sc_config.config_file.endswith('broh.sumocfg')
-    assert sc_config.net_file.endswith('broh.net.xml')
-    assert sc_config.route_file.endswith('broh.rou.xml')
+    assert sc_config.config_file.endswith('default.sumocfg')
+    assert sc_config.net_file.endswith('default.net.xml')
+    assert sc_config.route_file.endswith('default.rou.xml')
 
     # Check default constants
     assert sc_config.OPTIMIZATION_INTERVAL == config.OPTIMIZATION_INTERVAL
