@@ -42,11 +42,12 @@ def test_batch_mode_exits_cleanly(capsys):
 @patch("backend.run.init_traffic_manager")
 @patch("backend.run.app.run")
 def test_main_api_mode_invokes_init_traffic_manager(mock_app_run, mock_init_tm):
-    main(["--scenario", "default", "--seed", "77", "--headless"])
+    main(["--scenario", "default", "--seed", "77", "--headless", "--signal-strategy", "webster"])
     mock_init_tm.assert_called_once_with(
         scenario_name="default",
         seed=77,
-        headless=True
+        headless=True,
+        signal_strategy="webster"
     )
     mock_app_run.assert_called_once_with(debug=True)
 

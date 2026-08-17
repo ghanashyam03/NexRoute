@@ -7,7 +7,7 @@ import threading
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set, Any
+from typing import Dict, List, Tuple, Optional, Set, Any, Union
 import numpy as np
 import networkx as nx
 from scipy.stats import entropy
@@ -17,6 +17,7 @@ import sumolib
 from .scenario_loader import ScenarioConfig, load_scenario
 from .seeding import set_global_seed
 from .metrics_logger import RunMetricsLogger
+from .signal_strategies import SignalControlStrategy, WebsterSignalController, PSOSignalController
 from .config import (
     OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
@@ -36,7 +37,8 @@ class AdvancedTrafficManager:
         seed: Optional[int] = None,
         headless: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
-        run_id: Optional[str] = None
+        run_id: Optional[str] = None,
+        signal_strategy: Optional[Union[SignalControlStrategy, str]] = None
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -51,6 +53,24 @@ class AdvancedTrafficManager:
             self.sumo_config['gui'] = False
 
         set_global_seed(seed)
+
+        strategy_param = signal_strategy or getattr(scenario_config, 'signal_strategy', 'pso')
+        if isinstance(strategy_param, str):
+            strat_name = strategy_param.lower()
+            if strat_name == 'webster':
+                self.signal_strategy = WebsterSignalController(
+                    lost_time_per_phase=float(getattr(scenario_config, 'YELLOW_TIME', 4.0)),
+                    min_green=float(getattr(scenario_config, 'MIN_GREEN_TIME', 5.0)),
+                    max_green=float(getattr(scenario_config, 'MAX_GREEN_TIME', 100.0))
+                )
+            else:
+                self.signal_strategy = PSOSignalController(
+                    base_green_time=35.0,
+                    min_green=float(getattr(scenario_config, 'MIN_GREEN_TIME', 20.0)),
+                    max_green=float(getattr(scenario_config, 'MAX_GREEN_TIME', 100.0))
+                )
+        else:
+            self.signal_strategy = strategy_param
 
         self.metrics_logger = RunMetricsLogger(
             run_id=run_id,
@@ -526,100 +546,92 @@ class AdvancedTrafficManager:
             raise 
  
     def _optimize_traffic_signals(self): 
-        """Optimize traffic signals with improved proactive control."""
+        """Optimize traffic signals using the selected SignalControlStrategy."""
         try: 
-            if self.signal_pso is None: 
-                self._initialize_signal_pso() 
-            
             # Check if there are any traffic signals
             tls_list = traci.trafficlight.getIDList()
             if not tls_list:
                 logger.info("No traffic signals found in the network")
                 return
-            
-            # Run PSO optimization with more iterations 
-            best_params, best_score = self.signal_pso.optimize(5)  # Increased iterations 
-            
-            # Apply optimized parameters 
-            self._apply_signal_optimization(best_params) 
-            
-            logger.info(f"Signal optimization completed with score: {best_score:.2f}") 
-             
+
+            if isinstance(self.signal_strategy, PSOSignalController):
+                if self.signal_pso is None: 
+                    self._initialize_signal_pso() 
+                best_params, best_score = self.signal_pso.optimize(5)
+                self._apply_signal_optimization(best_params) 
+                logger.info(f"PSO signal optimization completed with score: {best_score:.2f}") 
+            else:
+                self._apply_signal_optimization(None)
+                logger.info(f"Signal control strategy ({self.signal_strategy.__class__.__name__}) applied")
+
         except Exception as e: 
             logger.error(f"Traffic signal optimization failed: {str(e)}")
  
-    def _apply_signal_optimization(self, params): 
-        """Apply signal optimization with improved proactive control."""
+    def _apply_signal_optimization(self, params=None): 
+        """Apply signal optimization using self.signal_strategy.compute_phase_durations()."""
         try: 
-            base_green_time, demand_weight, queue_weight = params 
-             
             for tls_id, signal_data in self.signal_states.items(): 
                 try:
-                    # Update optimal parameters 
-                    signal_data['optimal_params'] = params 
-                     
-                    # Calculate adaptive timing for each signal 
+                    if params:
+                        signal_data['optimal_params'] = params 
+
                     controlled_lanes = signal_data['controlled_lanes'] 
-                    
-                    # Get current program logic
-                    current_program = traci.trafficlight.getAllProgramLogics(tls_id)[0]  # Get first program
+                    current_program = traci.trafficlight.getAllProgramLogics(tls_id)[0]
                     phase_count = len(current_program.phases)
-                     
                     if phase_count == 0: 
                         continue 
-                     
-                    # Calculate phase durations with improved formula 
-                    new_phases = [] 
-                     
+
+                    phase_flows = []
+                    phase_demands = []
+                    phase_queues = []
+
                     for i, phase in enumerate(current_program.phases): 
                         state = phase.state 
-                         
+                        total_flow = 0.0 
                         total_demand = 0.0 
                         total_queue = 0.0 
-                        total_stops = 0.0 
-                        max_predicted_congestion = 0.0
-                         
+
                         for j, lane_id in enumerate(controlled_lanes): 
                             if j < len(state) and state[j] in ['g', 'G']: 
                                 edge_id = lane_id.split('_')[0] 
-                                 
                                 if edge_id in self.traffic_metrics: 
                                     metrics = self.traffic_metrics[edge_id] 
-                                    total_demand += metrics.flow_rate 
+                                    total_flow += metrics.flow_rate 
+                                    total_demand += metrics.volume 
                                     total_queue += metrics.queue_length 
-                                    total_stops += metrics.stop_count 
-                                    max_predicted_congestion = max(max_predicted_congestion, metrics.predicted_congestion)
-                         
-                        # Improved duration calculation with predicted congestion
-                        duration = ( 
-                            base_green_time +  
-                            (total_demand / 500) * demand_weight +  # Adjusted scaling 
-                            total_queue * queue_weight * 2.5 +      # Increased queue weight 
-                            total_stops * 2.0 +                     # Increased stop penalty
-                            max_predicted_congestion * 20.0         # Added predicted congestion impact
-                        ) 
-                         
-                        # Enforce min/max limits with improved bounds 
+
+                        phase_flows.append(total_flow)
+                        phase_demands.append(total_demand)
+                        phase_queues.append(total_queue)
+
+                    traffic_data = {
+                        'phase_flows': phase_flows,
+                        'phase_demands': phase_demands,
+                        'phase_queues': phase_queues,
+                        'params': params
+                    }
+
+                    durations = self.signal_strategy.compute_phase_durations(tls_id, traffic_data)
+
+                    new_phases = [] 
+                    for i, phase in enumerate(current_program.phases): 
+                        duration = durations[i] if i < len(durations) else phase.duration
                         duration = max(self.MIN_GREEN_TIME, min(self.MAX_GREEN_TIME, duration))
                         
-                        # Create new phase with optimized duration
                         new_phase = traci.trafficlight.Phase(
                             duration=duration,
-                            state=state,
+                            state=phase.state,
                             minDur=self.MIN_GREEN_TIME,
                             maxDur=self.MAX_GREEN_TIME
                         )
                         new_phases.append(new_phase)
-                     
-                    # Create new program with improved parameters 
+
                     new_program = traci.trafficlight.Logic( 
                         programID=current_program.programID,
                         type=current_program.type,
                         currentPhaseIndex=current_program.currentPhaseIndex,
                         phases=new_phases
                     ) 
-                     
-                    # Apply the new program 
                     traci.trafficlight.setProgramLogic(tls_id, new_program) 
                      
                     # Additional measures for high congestion

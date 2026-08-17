@@ -29,6 +29,13 @@ def parse_args(args=None):
         help="Force SUMO to launch in non-GUI mode (sumo binary instead of sumo-gui)"
     )
     parser.add_argument(
+        "--signal-strategy",
+        type=str,
+        choices=["pso", "webster"],
+        default="pso",
+        help="Signal control strategy: 'pso' for adaptive PSO tuning or 'webster' for fixed-time Webster baseline (default: 'pso')"
+    )
+    parser.add_argument(
         "--mode",
         choices=["api", "batch"],
         default="api",
@@ -49,7 +56,8 @@ def main(args=None):
     init_traffic_manager(
         scenario_name=parsed_args.scenario,
         seed=parsed_args.seed,
-        headless=parsed_args.headless
+        headless=parsed_args.headless,
+        signal_strategy=parsed_args.signal_strategy
     )
 
     try:
