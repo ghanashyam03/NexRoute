@@ -15,6 +15,7 @@ import traci
 import sumolib
 
 from .scenario_loader import ScenarioConfig, load_scenario
+from .seeding import set_global_seed
 from .config import (
     OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
@@ -41,9 +42,7 @@ class AdvancedTrafficManager:
             self.scenario_config.gui = False
             self.sumo_config['gui'] = False
 
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
+        set_global_seed(seed)
 
         # System parameters with improved thresholds 
         self.OPTIMIZATION_INTERVAL = scenario_config.OPTIMIZATION_INTERVAL
@@ -1624,6 +1623,8 @@ class AdvancedTrafficManager:
                 ]
                 if self.seed is not None:
                     sumo_cmd.extend(['--seed', str(self.seed)])
+                else:
+                    sumo_cmd.append('--random')
                 
                 # Start SUMO
                 traci.start(sumo_cmd)
