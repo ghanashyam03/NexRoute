@@ -18,6 +18,7 @@ from .scenario_loader import ScenarioConfig, load_scenario
 from .seeding import set_global_seed
 from .metrics_logger import RunMetricsLogger
 from .signal_strategies import SignalControlStrategy, WebsterSignalController, PSOSignalController
+from .routing_strategies import RoutingStrategy, StaticRoutingStrategy, AdaptiveRoutingStrategy
 from .config import (
     OPTIMIZATION_INTERVAL, CONGESTION_THRESHOLDS, SPEED_LIMITS,
     PCU_VALUES, PRIORITY_WEIGHTS, MAX_REROUTE_ATTEMPTS, MIN_REROUTE_INTERVAL,
@@ -38,7 +39,8 @@ class AdvancedTrafficManager:
         headless: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
         run_id: Optional[str] = None,
-        signal_strategy: Optional[Union[SignalControlStrategy, str]] = None
+        signal_strategy: Optional[Union[SignalControlStrategy, str]] = None,
+        routing_strategy: Optional[Union[RoutingStrategy, str]] = None
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -71,6 +73,20 @@ class AdvancedTrafficManager:
                 )
         else:
             self.signal_strategy = strategy_param
+
+        routing_param = routing_strategy or getattr(scenario_config, 'routing_strategy', 'adaptive')
+        if isinstance(routing_param, str):
+            r_name = routing_param.lower()
+            if r_name == 'static':
+                self.routing_strategy = StaticRoutingStrategy()
+            else:
+                self.routing_strategy = AdaptiveRoutingStrategy(
+                    adaptive_routing_threshold=scenario_config.ADAPTIVE_ROUTING_THRESHOLD,
+                    max_reroute_attempts=scenario_config.MAX_REROUTE_ATTEMPTS,
+                    min_reroute_interval=scenario_config.MIN_REROUTE_INTERVAL
+                )
+        else:
+            self.routing_strategy = routing_param
 
         self.metrics_logger = RunMetricsLogger(
             run_id=run_id,
@@ -830,6 +846,10 @@ class AdvancedTrafficManager:
     def _optimize_routing(self): 
         """Optimize routing with improved vehicle selection and proactive rerouting."""
         try: 
+            if isinstance(self.routing_strategy, StaticRoutingStrategy):
+                logger.debug("Skipping route optimization - StaticRoutingStrategy active")
+                return
+
             # First check if simulation is running and there are vehicles
             if not self.simulation_running or not traci.vehicle.getIDList():
                 logger.debug("Skipping route optimization - simulation not running or no vehicles")
@@ -911,7 +931,9 @@ class AdvancedTrafficManager:
     def _apply_adaptive_routing(self, candidate_vehicles, params): 
         """Apply adaptive routing with improved edge weights and alternative routes."""
         try: 
-            travel_time_weight, queue_delay_weight, congestion_penalty_weight, hist_congestion_weight = params 
+            if isinstance(self.routing_strategy, AdaptiveRoutingStrategy):
+                self.routing_strategy.params = params
+
             current_time = traci.simulation.getTime() 
              
             # Calculate edge weights first to avoid recomputation
@@ -919,37 +941,22 @@ class AdvancedTrafficManager:
             for edge in self.net.getEdges(): 
                 edge_id = edge.getID() 
                 edge_length = edge.getLength() 
-                nominal_travel_time = edge_length / edge.getSpeed() 
+                edge_speed = edge.getSpeed()
+                edge_data = {'edge_id': edge_id, 'length': edge_length, 'speed': edge_speed}
                  
                 metrics = self.traffic_metrics.get(edge_id, TrafficMetrics()) 
-                 
-                # Heavily penalize edges with predicted congestion
-                congestion_multiplier = 5.0 if metrics.predicted_congestion > self.ADAPTIVE_ROUTING_THRESHOLD else 1.0
-                
-                # Improved travel time calculation with speed prediction
-                if metrics.avg_speed > 0: 
-                    current_travel_time = edge_length / metrics.avg_speed 
-                else: 
-                    current_travel_time = nominal_travel_time * (1 + metrics.congestion_index) 
-                 
-                # Enhanced queue delay estimation with exponential penalty
-                queue_delay = metrics.queue_length * 3.0 * queue_delay_weight * (1.2 ** metrics.queue_length)
-                 
-                # Improved congestion penalty using predicted congestion
-                congestion_penalty = (metrics.predicted_congestion ** 2.0) * edge_length * congestion_penalty_weight
-                 
-                # Historical congestion with improved decay 
                 hist_congestion = np.mean(self.edge_congestion_history[edge_id][-5:]) if self.edge_congestion_history[edge_id] else 0 
-                hist_factor = 1.0 + (hist_congestion * hist_congestion_weight * 0.5)
-                 
-                # Combined edge weight with improved balancing 
-                edge_weight = ( 
-                    current_travel_time * travel_time_weight + 
-                    queue_delay + 
-                    congestion_penalty + 
-                    metrics.stop_count * 3.0  # Increased stop penalty
-                ) * hist_factor * congestion_multiplier  # Apply congestion multiplier
-                 
+
+                metrics_dict = {
+                    'predicted_congestion': metrics.predicted_congestion,
+                    'avg_speed': metrics.avg_speed,
+                    'congestion_index': metrics.congestion_index,
+                    'queue_length': metrics.queue_length,
+                    'stop_count': metrics.stop_count,
+                    'hist_congestion': hist_congestion
+                }
+
+                edge_weight = self.routing_strategy.compute_edge_weight("", "", edge_data, metrics_dict)
                 edge_weights[edge_id] = max(0.1, edge_weight) 
  
             # Update edge travel times in SUMO
@@ -1417,7 +1424,7 @@ class AdvancedTrafficManager:
             return False
  
     def _calculate_edge_weight(self, u, v, edge_data) -> float:
-        """Calculate edge weight considering various factors."""
+        """Calculate edge weight using self.routing_strategy."""
         try:
             edge_id = edge_data['edge_id']
             edge = self.net.getEdge(edge_id)
@@ -1425,23 +1432,24 @@ class AdvancedTrafficManager:
             if not self._is_edge_allowed(edge):
                 return float('inf')
             
-            # Base weight is edge length
-            weight = edge_data['length']
-            
-            # Add penalties for various factors
-            if edge.getSpeed() < 8.0:  # Slow edges
-                weight *= 1.5
-                
-            if len(edge.getLanes()) == 1:  # Single-lane roads
-                weight *= 1.2
-                
-            # Add congestion penalty if available
-            if edge_id in self.traffic_metrics:
-                metrics = self.traffic_metrics[edge_id]
-                if metrics.congestion_index > 0.7:
-                    weight *= (1 + metrics.congestion_index)
-            
-            return weight
+            metrics = self.traffic_metrics.get(edge_id)
+            metrics_dict = {}
+            if metrics:
+                hist_congestion = np.mean(self.edge_congestion_history[edge_id][-5:]) if self.edge_congestion_history[edge_id] else 0
+                metrics_dict = {
+                    'predicted_congestion': getattr(metrics, 'predicted_congestion', 0.0),
+                    'avg_speed': getattr(metrics, 'avg_speed', 0.0),
+                    'congestion_index': getattr(metrics, 'congestion_index', 0.0),
+                    'queue_length': getattr(metrics, 'queue_length', 0.0),
+                    'stop_count': getattr(metrics, 'stop_count', 0.0),
+                    'hist_congestion': hist_congestion
+                }
+
+            full_edge_data = dict(edge_data)
+            full_edge_data['length'] = edge.getLength()
+            full_edge_data['speed'] = edge.getSpeed()
+
+            return self.routing_strategy.compute_edge_weight(u, v, full_edge_data, metrics_dict)
             
         except Exception as e:
             logger.warning(f"Error calculating edge weight: {str(e)}")

@@ -15,6 +15,7 @@ class ScenarioConfig:
     route_file: str
     gui: bool = True
     signal_strategy: str = "pso"
+    routing_strategy: str = "adaptive"
     OPTIMIZATION_INTERVAL: int = config.OPTIMIZATION_INTERVAL
     CONGESTION_THRESHOLDS: Dict[str, float] = field(default_factory=lambda: dict(config.CONGESTION_THRESHOLDS))
     SPEED_LIMITS: Dict[str, float] = field(default_factory=lambda: dict(config.SPEED_LIMITS))
@@ -168,7 +169,7 @@ def load_scenario(
 
     # Map supported lowercase and uppercase parameter keys
     key_map = {k.lower(): k for k in params.keys()}
-    allowed_keys = {"name", "sumo", "signal_strategy"}.union(key_map.keys()).union(params.keys())
+    allowed_keys = {"name", "sumo", "signal_strategy", "routing_strategy"}.union(key_map.keys()).union(params.keys())
 
     # Validate unknown keys
     unknown_keys = [k for k in data.keys() if k not in allowed_keys and k.lower() not in key_map]
@@ -184,6 +185,7 @@ def load_scenario(
 
     gui = sumo_data.get("gui", True)
     signal_strategy = data.get("signal_strategy", "pso")
+    routing_strategy = data.get("routing_strategy", "adaptive")
 
     config_file_rel = sumo_data.get("config_file", "")
     net_file_rel = sumo_data.get("net_file", "")
@@ -201,7 +203,7 @@ def load_scenario(
     }
 
     for yaml_key, yaml_val in data.items():
-        if yaml_key in ("name", "sumo", "signal_strategy"):
+        if yaml_key in ("name", "sumo", "signal_strategy", "routing_strategy"):
             continue
         param_name = key_map.get(yaml_key.lower())
         if param_name and param_name in params:
@@ -218,5 +220,6 @@ def load_scenario(
         route_file=route_file_abs,
         gui=gui,
         signal_strategy=signal_strategy,
+        routing_strategy=routing_strategy,
         **params
     )

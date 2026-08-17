@@ -36,6 +36,13 @@ def parse_args(args=None):
         help="Signal control strategy: 'pso' for adaptive PSO tuning or 'webster' for fixed-time Webster baseline (default: 'pso')"
     )
     parser.add_argument(
+        "--routing-strategy",
+        type=str,
+        choices=["static", "adaptive"],
+        default="adaptive",
+        help="Routing strategy: 'static' for fixed shortest path or 'adaptive' for dynamic PSO rerouting (default: 'adaptive')"
+    )
+    parser.add_argument(
         "--mode",
         choices=["api", "batch"],
         default="api",
@@ -57,7 +64,8 @@ def main(args=None):
         scenario_name=parsed_args.scenario,
         seed=parsed_args.seed,
         headless=parsed_args.headless,
-        signal_strategy=parsed_args.signal_strategy
+        signal_strategy=parsed_args.signal_strategy,
+        routing_strategy=parsed_args.routing_strategy
     )
 
     try:
