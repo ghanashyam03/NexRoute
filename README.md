@@ -17,7 +17,7 @@ The objective of NexRoute is to test traffic management strategies dynamically d
 
 ## 🏗️ System Architecture & Data Flow
 
-The backend is a Flask REST server that interacts with the SUMO simulator through TraCI (Traffic Control Interface).
+The backend is a Flask REST server that interacts with the SUMO simulator through TraCI (Traffic Control Interface). Run metrics (periodic time-series CSV and final summary JSON snapshots) are persisted under the top-level `results/` directory per simulation run.
 
 ```mermaid
 graph TD
