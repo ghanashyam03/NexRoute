@@ -1,6 +1,6 @@
 name: default
 sumo:
   gui: true
-  config_file: broh.sumocfg
-  net_file: broh.net.xml
-  route_file: broh.rou.xml
+  config_file: default.sumocfg
+  net_file: default.net.xml
+  route_file: default.rou.xml
