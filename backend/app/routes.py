@@ -1,19 +1,46 @@
 import os
 import logging
+from typing import Optional
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import traci
 
-from .scenario_loader import load_scenario
+from .scenario_loader import load_scenario, ScenarioConfig
 from .traffic_manager import AdvancedTrafficManager
 
 logger = logging.getLogger(__name__)
 
-# Create Flask app and traffic manager instance
+# Create Flask app
 app = Flask(__name__)
 CORS(app)
-scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
-traffic_manager = AdvancedTrafficManager(scenario_config=scenario_config)
+
+scenario_config: Optional[ScenarioConfig] = None
+traffic_manager: Optional[AdvancedTrafficManager] = None
+
+
+def init_traffic_manager(
+    scenario_name: str = 'default',
+    seed: Optional[int] = None,
+    headless: bool = False
+) -> AdvancedTrafficManager:
+    """Initialize or reconfigure the traffic manager with specified scenario, seed, and headless options."""
+    global traffic_manager, scenario_config
+    scenario_config = load_scenario(scenario_name)
+    traffic_manager = AdvancedTrafficManager(
+        scenario_config=scenario_config,
+        seed=seed,
+        headless=headless
+    )
+    return traffic_manager
+
+
+def get_traffic_manager() -> AdvancedTrafficManager:
+    """Get or lazily initialize the global traffic manager instance."""
+    global traffic_manager
+    if traffic_manager is None:
+        init_traffic_manager(os.getenv('SCENARIO_NAME', 'default'))
+    return traffic_manager
+
 
 @app.route('/process', methods=['POST'])
 def process():
@@ -25,8 +52,9 @@ def process():
         
         logger.info(f"Received route data - From: {initial_location} To: {destination}")
         
+        tm = get_traffic_manager()
         # Add vehicle to route file
-        result = traffic_manager.add_vehicle_to_simulation(
+        result = tm.add_vehicle_to_simulation(
             from_edge=initial_location,
             to_edge=destination
         )
@@ -59,7 +87,8 @@ def process():
 def start_simulation():
     """Start the SUMO simulation with GUI."""
     try:
-        result = traffic_manager.start_simulation()
+        tm = get_traffic_manager()
+        result = tm.start_simulation()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Failed to start simulation: {str(e)}")
@@ -72,10 +101,11 @@ def start_simulation():
 def get_updates(vehicle_id):
     """Get the latest updates for a specific vehicle."""
     try:
+        tm = get_traffic_manager()
         # Read all updates from the file
         latest_updates = []
-        if os.path.exists(traffic_manager.updates_file):
-            with open(traffic_manager.updates_file, 'r') as f:
+        if os.path.exists(tm.updates_file):
+            with open(tm.updates_file, 'r') as f:
                 lines = f.readlines()
                 current_block = []
                 for line in lines:
@@ -95,7 +125,7 @@ def get_updates(vehicle_id):
         is_completed = False
         try:
             # Get vehicle's current state
-            vehicle_state = traffic_manager.vehicle_states.get(vehicle_id)
+            vehicle_state = tm.vehicle_states.get(vehicle_id)
             if vehicle_state:
                 # Check if vehicle is still in simulation
                 try:
