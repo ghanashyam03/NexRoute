@@ -1652,50 +1652,48 @@ class AdvancedTrafficManager:
             logger.error(f"Error getting vehicle updates: {str(e)}")
             return {"status": "error", "message": str(e)}
  
+    def _start_traci_process(self):
+        """Start the SUMO TraCI process if not already started."""
+        if not self.traci_started:
+            use_gui = self.sumo_config.get('gui', True) and not self.headless
+            sumo_binary_name = 'sumo-gui' if use_gui else 'sumo'
+            sumo_binary = sumolib.checkBinary(sumo_binary_name)
+            sumo_cmd = [
+                sumo_binary,
+                '-c', self.sumo_config['config_file'],
+                '--net-file', self.sumo_config['net_file'],
+                '--route-files', self.sumo_config['route_file'],
+                '--time-to-teleport', '-1',
+                '--waiting-time-memory', '10000',
+                '--device.emissions.probability', '1.0',
+                '--device.rerouting.probability', '1.0',
+                '--device.rerouting.period', '20',
+                '--step-length', '1.0',
+                '--collision.action', 'warn',
+                '--lateral-resolution', '0.1',
+                '--no-step-log', 'true',
+                '--no-warnings', 'true',
+                '--start', 'true'  # Auto-start simulation in GUI
+            ]
+            if self.seed is not None:
+                sumo_cmd.extend(['--seed', str(self.seed)])
+            else:
+                sumo_cmd.append('--random')
+            
+            traci.start(sumo_cmd)
+            self.traci_started = True
+            self._initialize_traffic_signals()
+
     def start_simulation(self):
-        """Start SUMO simulation with GUI."""
+        """Start SUMO simulation in background thread for API mode."""
         if self.simulation_running:
             return {"status": "error", "message": "Simulation already running"}
         
         try:
-            if not self.traci_started:  # Only start TraCI if not already started
-                use_gui = self.sumo_config.get('gui', True) and not self.headless
-                sumo_binary_name = 'sumo-gui' if use_gui else 'sumo'
-                sumo_binary = sumolib.checkBinary(sumo_binary_name)
-                sumo_cmd = [
-                    sumo_binary,
-                    '-c', self.sumo_config['config_file'],
-                    '--net-file', self.sumo_config['net_file'],
-                    '--route-files', self.sumo_config['route_file'],
-                    '--time-to-teleport', '-1',
-                    '--waiting-time-memory', '10000',
-                    '--device.emissions.probability', '1.0',
-                    '--device.rerouting.probability', '1.0',
-                    '--device.rerouting.period', '20',
-                    '--step-length', '1.0',
-                    '--collision.action', 'warn',
-                    '--lateral-resolution', '0.1',
-                    '--no-step-log', 'true',
-                    '--no-warnings', 'true',
-                    '--start', 'false'  # Start paused
-                ]
-                if self.seed is not None:
-                    sumo_cmd.extend(['--seed', str(self.seed)])
-                else:
-                    sumo_cmd.append('--random')
-                
-                # Start SUMO
-                traci.start(sumo_cmd)
-                self.traci_started = True
-                
-                # Initialize traffic signals
-                self._initialize_traffic_signals()
-            
-            # Start simulation in a separate thread
+            self._start_traci_process()
             self.simulation_running = True
             self.simulation_thread = threading.Thread(target=self.run_simulation)
             self.simulation_thread.start()
-            
             return {"status": "success", "message": "Simulation started successfully"}
             
         except Exception as e:
@@ -1704,10 +1702,25 @@ class AdvancedTrafficManager:
                 try:
                     traci.close()
                     self.traci_started = False
-                    return self.start_simulation()  # Retry after closing
-                except:
+                    return self.start_simulation()
+                except Exception:
                     pass
             return {"status": "error", "message": str(e)}
+
+    def run_batch_simulation(self, steps: int = 3600):
+        """Run a synchronous batch simulation to completion without threading."""
+        self._start_traci_process()
+        self.simulation_running = True
+        try:
+            self.run_simulation(steps=steps)
+        finally:
+            self.simulation_running = False
+            if self.traci_started:
+                try:
+                    traci.close()
+                except Exception:
+                    pass
+                self.traci_started = False
  
     def get_driver_updates(self, vehicle_id: str) -> List[str]:
         """Get the latest driver updates for a specific vehicle."""
