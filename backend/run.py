@@ -43,6 +43,24 @@ def parse_args(args=None):
         help="Routing strategy: 'static' for fixed shortest path or 'adaptive' for dynamic PSO rerouting (default: 'adaptive')"
     )
     parser.add_argument(
+        "--enable-signals",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable traffic signal optimization subsystem (default: --enable-signals)"
+    )
+    parser.add_argument(
+        "--enable-vsl",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable Variable Speed Limit (VSL) subsystem (default: --enable-vsl)"
+    )
+    parser.add_argument(
+        "--enable-routing",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable dynamic routing subsystem (default: --enable-routing)"
+    )
+    parser.add_argument(
         "--mode",
         choices=["api", "batch"],
         default="api",
@@ -65,7 +83,10 @@ def main(args=None):
         seed=parsed_args.seed,
         headless=parsed_args.headless,
         signal_strategy=parsed_args.signal_strategy,
-        routing_strategy=parsed_args.routing_strategy
+        routing_strategy=parsed_args.routing_strategy,
+        enable_signals=parsed_args.enable_signals,
+        enable_vsl=parsed_args.enable_vsl,
+        enable_routing=parsed_args.enable_routing
     )
 
     try:
