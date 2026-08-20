@@ -31,12 +31,12 @@ def test_parse_args_invalid_mode():
         parse_args(["--mode", "invalid"])
 
 
-def test_batch_mode_exits_cleanly(capsys):
+@patch("backend.run.run_batch_mode")
+def test_batch_mode_exits_cleanly(mock_run_batch):
     with pytest.raises(SystemExit) as exc_info:
         main(["--mode", "batch"])
     assert exc_info.value.code == 0
-    captured = capsys.readouterr()
-    assert "batch mode not yet implemented" in captured.out
+    mock_run_batch.assert_called_once()
 
 
 @patch("backend.run.init_traffic_manager")
@@ -47,6 +47,7 @@ def test_main_api_mode_invokes_init_traffic_manager(mock_app_run, mock_init_tm):
         scenario_name="default",
         seed=77,
         headless=True,
+        output_dir="results",
         signal_strategy="webster",
         routing_strategy="static",
         enable_signals=True,
