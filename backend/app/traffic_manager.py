@@ -1673,7 +1673,7 @@ class AdvancedTrafficManager:
                 '--lateral-resolution', '0.1',
                 '--no-step-log', 'true',
                 '--no-warnings', 'true',
-                '--start', 'false'
+                '--start', 'true'  # Auto-start simulation in GUI
             ]
             if self.seed is not None:
                 sumo_cmd.extend(['--seed', str(self.seed)])
