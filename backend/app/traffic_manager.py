@@ -40,7 +40,10 @@ class AdvancedTrafficManager:
         output_dir: Optional[Union[str, Path]] = None,
         run_id: Optional[str] = None,
         signal_strategy: Optional[Union[SignalControlStrategy, str]] = None,
-        routing_strategy: Optional[Union[RoutingStrategy, str]] = None
+        routing_strategy: Optional[Union[RoutingStrategy, str]] = None,
+        enable_signals: Optional[bool] = None,
+        enable_vsl: Optional[bool] = None,
+        enable_routing: Optional[bool] = None
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -55,6 +58,10 @@ class AdvancedTrafficManager:
             self.sumo_config['gui'] = False
 
         set_global_seed(seed)
+
+        self.enable_signals = enable_signals if enable_signals is not None else getattr(scenario_config, 'enable_signals', True)
+        self.enable_vsl = enable_vsl if enable_vsl is not None else getattr(scenario_config, 'enable_vsl', True)
+        self.enable_routing = enable_routing if enable_routing is not None else getattr(scenario_config, 'enable_routing', True)
 
         strategy_param = signal_strategy or getattr(scenario_config, 'signal_strategy', 'pso')
         if isinstance(strategy_param, str):
@@ -75,18 +82,23 @@ class AdvancedTrafficManager:
             self.signal_strategy = strategy_param
 
         routing_param = routing_strategy or getattr(scenario_config, 'routing_strategy', 'adaptive')
-        if isinstance(routing_param, str):
-            r_name = routing_param.lower()
-            if r_name == 'static':
-                self.routing_strategy = StaticRoutingStrategy()
-            else:
-                self.routing_strategy = AdaptiveRoutingStrategy(
-                    adaptive_routing_threshold=scenario_config.ADAPTIVE_ROUTING_THRESHOLD,
-                    max_reroute_attempts=scenario_config.MAX_REROUTE_ATTEMPTS,
-                    min_reroute_interval=scenario_config.MIN_REROUTE_INTERVAL
-                )
+        if not self.enable_routing:
+            if (isinstance(routing_param, str) and routing_param.lower() == 'adaptive') or isinstance(routing_param, AdaptiveRoutingStrategy):
+                logger.warning("Routing is disabled (enable_routing=False); adaptive routing strategy will be overridden and no dynamic rerouting will occur.")
+            self.routing_strategy = StaticRoutingStrategy()
         else:
-            self.routing_strategy = routing_param
+            if isinstance(routing_param, str):
+                r_name = routing_param.lower()
+                if r_name == 'static':
+                    self.routing_strategy = StaticRoutingStrategy()
+                else:
+                    self.routing_strategy = AdaptiveRoutingStrategy(
+                        adaptive_routing_threshold=scenario_config.ADAPTIVE_ROUTING_THRESHOLD,
+                        max_reroute_attempts=scenario_config.MAX_REROUTE_ATTEMPTS,
+                        min_reroute_interval=scenario_config.MIN_REROUTE_INTERVAL
+                    )
+            else:
+                self.routing_strategy = routing_param
 
         self.metrics_logger = RunMetricsLogger(
             run_id=run_id,
@@ -1054,9 +1066,12 @@ class AdvancedTrafficManager:
                 if step % self.OPTIMIZATION_INTERVAL == 0: 
                     logger.info(f"Performing optimization at step {step}, time {current_time}") 
                      
-                    self._optimize_traffic_signals() 
-                    self._optimize_speed_limits() 
-                    self._optimize_routing() 
+                    if self.enable_signals:
+                        self._optimize_traffic_signals() 
+                    if self.enable_vsl:
+                        self._optimize_speed_limits() 
+                    if self.enable_routing:
+                        self._optimize_routing() 
                      
                     metrics = self._evaluate_system_performance() 
                     if metrics:

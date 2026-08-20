@@ -48,7 +48,10 @@ def test_main_api_mode_invokes_init_traffic_manager(mock_app_run, mock_init_tm):
         seed=77,
         headless=True,
         signal_strategy="webster",
-        routing_strategy="static"
+        routing_strategy="static",
+        enable_signals=True,
+        enable_vsl=True,
+        enable_routing=True
     )
     mock_app_run.assert_called_once_with(debug=True)
 

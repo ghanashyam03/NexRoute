@@ -28,7 +28,10 @@ def init_traffic_manager(
     output_dir: Optional[Union[str, Path]] = None,
     run_id: Optional[str] = None,
     signal_strategy: Optional[Union[Any, str]] = None,
-    routing_strategy: Optional[Union[Any, str]] = None
+    routing_strategy: Optional[Union[Any, str]] = None,
+    enable_signals: Optional[bool] = None,
+    enable_vsl: Optional[bool] = None,
+    enable_routing: Optional[bool] = None
 ) -> AdvancedTrafficManager:
     """Initialize or reconfigure the traffic manager with specified scenario, seed, and headless options."""
     global traffic_manager, scenario_config
@@ -40,7 +43,10 @@ def init_traffic_manager(
         output_dir=output_dir,
         run_id=run_id,
         signal_strategy=signal_strategy,
-        routing_strategy=routing_strategy
+        routing_strategy=routing_strategy,
+        enable_signals=enable_signals,
+        enable_vsl=enable_vsl,
+        enable_routing=enable_routing
     )
     return traffic_manager
 
