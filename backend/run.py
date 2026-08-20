@@ -1,6 +1,8 @@
 import sys
+import json
 import argparse
 import logging
+import traceback
 from app.seeding import set_global_seed
 from app.routes import app, init_traffic_manager
 
@@ -61,6 +63,18 @@ def parse_args(args=None):
         help="Enable/disable dynamic routing subsystem (default: --enable-routing)"
     )
     parser.add_argument(
+        "--steps",
+        type=int,
+        default=3600,
+        help="Number of simulation steps to run in batch mode (default: 3600)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="results",
+        help="Output directory path for storing run metrics (default: 'results')"
+    )
+    parser.add_argument(
         "--mode",
         choices=["api", "batch"],
         default="api",
@@ -69,19 +83,73 @@ def parse_args(args=None):
     return parser.parse_args(args)
 
 
+def run_batch_mode(parsed_args):
+    """Execute a batch simulation run end-to-end without starting Flask API server."""
+    try:
+        set_global_seed(parsed_args.seed)
+
+        tm = init_traffic_manager(
+            scenario_name=parsed_args.scenario,
+            seed=parsed_args.seed,
+            headless=parsed_args.headless,
+            output_dir=parsed_args.output_dir,
+            signal_strategy=parsed_args.signal_strategy,
+            routing_strategy=parsed_args.routing_strategy,
+            enable_signals=parsed_args.enable_signals,
+            enable_vsl=parsed_args.enable_vsl,
+            enable_routing=parsed_args.enable_routing
+        )
+
+        tm.run_batch_simulation(steps=parsed_args.steps)
+
+        run_id = tm.metrics_logger.run_id
+        summary_file = tm.metrics_logger.json_path
+
+        final_metrics = {}
+        if summary_file.exists():
+            with open(summary_file, "r", encoding="utf-8") as f:
+                file_summary = json.load(f)
+                final_metrics = file_summary.get("summary_metrics", {})
+
+        summary_data = {
+            "run_id": run_id,
+            "scenario": parsed_args.scenario,
+            "seed": parsed_args.seed,
+            "enabled_components": {
+                "signals": parsed_args.enable_signals,
+                "vsl": parsed_args.enable_vsl,
+                "routing": parsed_args.enable_routing
+            },
+            "signal_strategy": parsed_args.signal_strategy,
+            "routing_strategy": str(tm.routing_strategy.__class__.__name__),
+            "final_metrics": final_metrics,
+            "summary_file": str(summary_file),
+            "timeseries_file": str(tm.metrics_logger.csv_path)
+        }
+
+        print(json.dumps(summary_data))
+        return summary_data
+
+    except Exception as e:
+        logger.error(f"Batch mode simulation failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        sys.exit(1)
+
+
 def main(args=None):
     parsed_args = parse_args(args)
 
     set_global_seed(parsed_args.seed)
 
     if parsed_args.mode == "batch":
-        print("batch mode not yet implemented")
+        run_batch_mode(parsed_args)
         sys.exit(0)
 
     init_traffic_manager(
         scenario_name=parsed_args.scenario,
         seed=parsed_args.seed,
         headless=parsed_args.headless,
+        output_dir=parsed_args.output_dir,
         signal_strategy=parsed_args.signal_strategy,
         routing_strategy=parsed_args.routing_strategy,
         enable_signals=parsed_args.enable_signals,
