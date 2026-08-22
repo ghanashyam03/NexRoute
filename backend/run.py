@@ -1,4 +1,8 @@
 import sys
+from pathlib import Path
+# Ensure backend directory is in sys.path for standalone script execution
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import json
 import argparse
 import logging
