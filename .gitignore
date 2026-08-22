@@ -49,3 +49,10 @@ frontend/android/app/release
 
 # Metrics results output directory
 results/
+
+# SUMO generated scenario network and route files (only generator script & scenario.yaml are version-controlled)
+backend/scenarios/grid_*/*.net.xml
+backend/scenarios/grid_*/*.rou.xml
+backend/scenarios/grid_*/*.sumocfg
+backend/scenarios/grid_*/*.alt.xml
+backend/scenarios/grid_*/*.trips.xml

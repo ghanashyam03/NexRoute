@@ -1,0 +1,6 @@
+name: grid_3_light
+sumo:
+  config_file: grid.sumocfg
+  gui: true
+  net_file: grid.net.xml
+  route_file: grid.rou.xml
