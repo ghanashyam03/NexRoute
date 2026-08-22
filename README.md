@@ -20,24 +20,24 @@ The objective of NexRoute is to test traffic management strategies dynamically d
 The backend is a Flask REST server that interacts with the SUMO simulator through TraCI (Traffic Control Interface). Run metrics (periodic time-series CSV and final summary JSON snapshots) are persisted under the top-level `results/` directory per simulation run.
 
 ```mermaid
-graph TD
-    A[Client REST Requests] -->|POST /process| B(Flask API - routes.py)
-    A -->|POST /start| B
-    B -->|Route Generation| C(NetworkX Dijkstra Solver)
-    C -->|XML Route Injection| D(SUMO Route Configuration)
-    B -->|Start Simulation| E(Advanced Traffic Manager)
-    E -->|TraCI Connection| F(SUMO Simulator GUI/Binary)
-    F -->|Raw Vehicle & Edge States| E
-    E -->|Compute Metrics| G(Traffic Metrics Engine)
-    G -->|Predict Future Congestion| H(Congestion Predictor)
-    H -->|Input| I(PSO Optimization Engine)
-    I -->|Dynamic Signal Control| F
-    I -->|Variable Speed Limits| F
-    I -->|Proactive Vehicle Rerouting| F
-    E -->|Realtime updates| J(Driver Assistance System)
-    J -->|File Write| K(driver_updates.txt)
-    A -->|GET /updates/vehicle_id| B
-    B -->|Parse Updates| K
+flowchart TD
+    A["Client REST Requests"] -->|"POST /process"| B["Flask API (routes.py)"]
+    A -->|"POST /start"| B
+    B -->|"Route Generation"| C["NetworkX Dijkstra Solver"]
+    C -->|"XML Route Injection"| D["SUMO Route Configuration"]
+    B -->|"Start Simulation"| E["Advanced Traffic Manager"]
+    E -->|"TraCI Connection"| F["SUMO Simulator (GUI / Binary)"]
+    F -->|"Raw Vehicle & Edge States"| E
+    E -->|"Compute Metrics"| G["Traffic Metrics Engine"]
+    G -->|"Predict Future Congestion"| H["Congestion Predictor"]
+    H -->|"Input"| I["PSO Optimization Engine"]
+    I -->|"Dynamic Signal Control"| F
+    I -->|"Variable Speed Limits"| F
+    I -->|"Proactive Vehicle Rerouting"| F
+    E -->|"Realtime updates"| J["Driver Assistance System"]
+    J -->|"File Write"| K["driver_updates.txt"]
+    A -->|"GET /updates/vehicle_id"| B
+    B -->|"Parse Updates"| K
 ```
 
 ### Execution Flow:
