@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 import yaml
 
+from backend.scenario_tools.demand_shapes import generate_demands_for_profile
+
 logger = logging.getLogger(__name__)
 
 # Demand level mapping to randomTrips period (seconds between vehicle departures).
@@ -55,17 +57,16 @@ def generate_grid_scenario(
     length: float = 200.0,
     lanes: int = 2,
     demand_level: str = "moderate",
+    demand_shape: str = "flat",
     output_dir: Path = None,
     seed: int = None
 ) -> Path:
-    """Generate a synthetic grid SUMO scenario end-to-end."""
-    if demand_level not in DEMAND_PERIOD_MAP:
-        raise ValueError(f"Invalid demand_level '{demand_level}'. Must be one of {list(DEMAND_PERIOD_MAP.keys())}")
-
+    """Generate a synthetic grid network scenario with customizable demand shape profile."""
     sumo_home, netgenerate_bin, random_trips_py = locate_sumo_tools()
 
-    period = DEMAND_PERIOD_MAP[demand_level]
     scenario_name = f"grid_{size}_{demand_level}"
+    if demand_shape != "flat":
+        scenario_name = f"{scenario_name}_{demand_shape}"
 
     if output_dir is None:
         repo_root = Path(__file__).resolve().parent.parent.parent
@@ -94,24 +95,17 @@ def generate_grid_scenario(
     if res_net.returncode != 0:
         raise RuntimeError(f"netgenerate failed:\n{res_net.stderr}")
 
-    # Step 2: Run randomTrips.py to generate vehicle demand
-    random_trips_cmd = [
-        sys.executable,
-        str(random_trips_py),
-        "-n", str(net_file),
-        "-r", str(route_file),
-        "-e", "3600",
-        "-p", str(period),
-        "--fringe-junctions",
-        "--validate"
-    ]
-    if seed is not None:
-        random_trips_cmd.extend(["-s", str(seed)])
-
-    logger.info(f"Generating vehicle demand with randomTrips.py: demand_level={demand_level} (period={period}s)")
-    res_trips = subprocess.run(random_trips_cmd, capture_output=True, text=True)
-    if res_trips.returncode != 0:
-        raise RuntimeError(f"randomTrips.py failed:\n{res_trips.stderr}")
+    # Step 2: Generate vehicle demand profile routes using shared helper
+    logger.info(f"Generating vehicle demand: level={demand_level}, shape={demand_shape}")
+    generate_demands_for_profile(
+        net_file=net_file,
+        route_file=route_file,
+        demand_level=demand_level,
+        demand_shape=demand_shape,
+        duration=3600.0,
+        seed=seed,
+        random_trips_py=random_trips_py
+    )
 
     # Step 3: Write grid.sumocfg
     sumocfg_content = f"""<configuration>
@@ -158,32 +152,39 @@ def parse_args(args=None):
         "--length",
         type=float,
         default=200.0,
-        help="Edge length in meters between grid junctions (default: 200.0)"
+        help="Length of each grid edge in meters (default: 200.0)"
     )
     parser.add_argument(
         "--lanes",
         type=int,
         default=2,
-        help="Number of lanes per direction on grid edges (default: 2)"
+        help="Number of lanes per direction (default: 2)"
     )
     parser.add_argument(
         "--demand-level",
         type=str,
         choices=["light", "moderate", "heavy"],
         default="moderate",
-        help="Vehicle demand level: 'light' (period=2.0s), 'moderate' (period=1.0s), or 'heavy' (period=0.5s) (default: 'moderate')"
+        help="Vehicle demand level: 'light', 'moderate', or 'heavy' (default: 'moderate')"
+    )
+    parser.add_argument(
+        "--demand-shape",
+        type=str,
+        choices=["flat", "single_peak", "two_peak"],
+        default="flat",
+        help="Vehicle demand profile shape: 'flat', 'single_peak', or 'two_peak' (default: 'flat')"
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Target scenario directory (default: backend/scenarios/grid_{size}_{demand_level})"
+        help="Target output directory (default: backend/scenarios/grid_{size}_{demand_level})"
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=None,
-        help="Random seed for reproducible trip generation (default: None)"
+        help="Random seed for reproducible demand generation"
     )
     return parser.parse_args(args)
 
@@ -196,7 +197,8 @@ def main(args=None):
         length=parsed.length,
         lanes=parsed.lanes,
         demand_level=parsed.demand_level,
-        output_dir=parsed.output_dir,
+        demand_shape=parsed.demand_shape,
+        output_dir=Path(parsed.output_dir) if parsed.output_dir else None,
         seed=parsed.seed
     )
 
