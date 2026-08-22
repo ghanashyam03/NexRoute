@@ -9,7 +9,8 @@ Runs the full ablation experiment matrix across scenarios, seeds, and the 5 spec
   5. combined      (PSO signals, VSL, and adaptive PSO routing all enabled)
 
 Invokes backend/run.py in batch mode for each cell, captures stdout JSON metrics,
-writes consolidated records to sweep_manifest.jsonl, and supports crash-safe resumability.
+writes consolidated records to sweep_manifest.jsonl with immediate disk flushing,
+and supports crash-safe resumability, dry-run inspection, process timeouts, and consecutive-failure aborts.
 """
 
 import sys
@@ -20,7 +21,7 @@ import argparse
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Dict, Any, Tuple, Set, Optional
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -72,8 +73,8 @@ def build_run_command(
     seed: int,
     condition_name: str,
     steps: int = 500,
-    output_dir: Path = None,
-    repo_root: Path = None
+    output_dir: Optional[Path] = None,
+    repo_root: Optional[Path] = None
 ) -> List[str]:
     """
     Construct the command line argument list for invoking backend/run.py in batch mode
@@ -144,8 +145,8 @@ def load_completed_manifest_entries(manifest_path: Path) -> Set[Tuple[str, int, 
                 condition = entry.get("condition")
                 exit_code = entry.get("exit_code")
 
-                # Mark as completed if run exited cleanly with exit_code == 0
-                if scenario and seed is not None and condition and exit_code == 0:
+                # Mark as completed if run exited cleanly with exit_code == 0 and contains valid summary
+                if scenario and seed is not None and condition and exit_code == 0 and "summary" in entry:
                     completed.add((scenario, int(seed), condition))
             except json.JSONDecodeError:
                 logger.warning(f"Malformed JSON on line {line_num} in manifest file '{manifest_path}'")
@@ -159,60 +160,115 @@ def execute_single_cell(
     condition: str,
     steps: int,
     output_dir: Path,
-    repo_root: Path
+    repo_root: Path,
+    timeout_sec: float = 900.0
 ) -> Dict[str, Any]:
-    """Execute a single simulation run via subprocess and parse stdout JSON output."""
+    """
+    Execute a single simulation run via subprocess with timeout protection,
+    capturing stdout JSON output or gracefully recording errors.
+    """
     cmd = build_run_command(scenario, seed, condition, steps, output_dir, repo_root)
-    
     start_time = time.time()
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    duration_sec = time.time() - start_time
     
-    result_record = {
-        "scenario": scenario,
-        "seed": seed,
-        "condition": condition,
-        "exit_code": res.returncode,
-        "duration_seconds": round(duration_sec, 2),
-        "cmd": cmd
-    }
-    
-    if res.returncode == 0:
-        # Parse final JSON summary line from stdout
-        stdout_lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        summary_json = None
-        for line in reversed(stdout_lines):
-            if line.startswith("{") and line.endswith("}"):
-                try:
-                    summary_json = json.loads(line)
-                    break
-                except json.JSONDecodeError:
-                    continue
-        
-        if summary_json:
-            result_record["summary"] = summary_json
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        duration_sec = time.time() - start_time
+
+        result_record = {
+            "scenario": scenario,
+            "seed": seed,
+            "condition": condition,
+            "exit_code": res.returncode,
+            "duration_seconds": round(duration_sec, 2),
+            "cmd": cmd
+        }
+
+        if res.returncode == 0:
+            # Parse final JSON summary line from stdout
+            stdout_lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+            summary_json = None
+            for line in reversed(stdout_lines):
+                if line.startswith("{") and line.endswith("}"):
+                    try:
+                        summary_json = json.loads(line)
+                        break
+                    except json.JSONDecodeError:
+                        continue
+
+            if summary_json:
+                result_record["summary"] = summary_json
+            else:
+                result_record["exit_code"] = 1
+                result_record["error"] = (
+                    f"Malformed stdout output (failed to parse summary JSON from final line):\n"
+                    f"{res.stdout[-1000:]}"
+                )
         else:
-            result_record["raw_stdout"] = res.stdout[-1000:]
+            result_record["error"] = f"Subprocess exited with code {res.returncode}:\n{res.stderr[-1000:]}"
+
+        return result_record
+
+    except subprocess.TimeoutExpired as exc:
+        duration_sec = time.time() - start_time
+        logger.error(
+            f"TimeoutExpired: Cell (scenario='{scenario}', seed={seed}, condition='{condition}') "
+            f"exceeded timeout threshold of {timeout_sec}s."
+        )
+        raw_out = exc.output if exc.output else (exc.stdout if exc.stdout else "")
+        raw_err = exc.stderr if exc.stderr else ""
+        stdout_clip = raw_out[-500:] if isinstance(raw_out, str) else ""
+        stderr_clip = raw_err[-500:] if isinstance(raw_err, str) else ""
+        return {
+            "scenario": scenario,
+            "seed": seed,
+            "condition": condition,
+            "exit_code": 124,
+            "duration_seconds": round(duration_sec, 2),
+            "cmd": cmd,
+            "error": f"TimeoutExpired: Subprocess exceeded timeout of {timeout_sec}s.\nStdout: {stdout_clip}\nStderr: {stderr_clip}"
+        }
+
+
+def write_manifest_entry_flushed(manifest_path: Path, record: Dict[str, Any], lock: Optional[threading.Lock] = None):
+    """
+    Append a single JSON line to sweep_manifest.jsonl with immediate disk flushing
+    to guarantee crash safety against SIGKILL or power loss.
+    """
+    line_str = json.dumps(record) + "\n"
+    
+    def _write():
+        with open(manifest_path, "a", encoding="utf-8") as f:
+            f.write(line_str)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+
+    if lock:
+        with lock:
+            _write()
     else:
-        result_record["error"] = f"Subprocess exited with code {res.returncode}:\n{res.stderr[-1000:]}"
-        
-    return result_record
+        _write()
 
 
 def run_ablation_sweep(
     scenarios: List[str],
     seeds: List[int],
-    conditions: List[str] = None,
+    conditions: Optional[List[str]] = None,
     steps: int = 500,
-    output_dir: Path = None,
-    parallel: int = 1
+    output_dir: Optional[Path] = None,
+    parallel: int = 1,
+    run_timeout_seconds: float = 900.0,
+    max_consecutive_failures: int = 5,
+    dry_run: bool = False
 ) -> Dict[str, Any]:
     """
-    Run full ablation experiment matrix over scenarios x seeds x conditions.
-    
-    Note: Parallel execution (--parallel N) runs up to N SUMO subprocesses concurrently.
-    Each SUMO simulation instance consumes significant CPU & RAM resources. Ensure your machine
-    has adequate hardware capacity before increasing N > 1.
+    Run full ablation experiment matrix over scenarios x seeds x conditions with hardening:
+      - Immediate line flushing for crash safety.
+      - Process timeout protection via run_timeout_seconds.
+      - Early abort on max_consecutive_failures.
+      - Dry-run mode for configuration inspection.
     """
     repo_root = Path(__file__).resolve().parent.parent
     if output_dir is None:
@@ -220,16 +276,10 @@ def run_ablation_sweep(
     else:
         output_dir = Path(output_dir).resolve()
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = output_dir / "sweep_manifest.jsonl"
-
     if conditions is None:
         conditions = list(ABLATION_CONDITIONS.keys())
 
-    # Load existing successful entries for resumability
-    completed_cells = load_completed_manifest_entries(manifest_path)
-    
-    manifest_lock = threading.Lock()
+    manifest_path = output_dir / "sweep_manifest.jsonl"
 
     # Build work queue of all (scenario, seed, condition) combinations
     all_cells = [
@@ -239,20 +289,48 @@ def run_ablation_sweep(
         for cond in conditions
     ]
 
-    pending_cells = [
-        cell for cell in all_cells
-        if cell not in completed_cells
-    ]
+    # Load existing successful entries for resumability
+    completed_cells = load_completed_manifest_entries(manifest_path) if manifest_path.exists() else set()
+    pending_cells = [cell for cell in all_cells if cell not in completed_cells]
 
-    total_attempted = len(all_cells)
-    skipped_count = total_attempted - len(pending_cells)
+    total_configured = len(all_cells)
+    skipped_count = total_configured - len(pending_cells)
+
+    # 1. Handle Dry-Run Mode
+    if dry_run:
+        print("\n" + "=" * 70)
+        print("Ablation Sweep Dry-Run Plan")
+        print("=" * 70)
+        print(f"Total Configured Combinations: {total_configured:6d}")
+        print(f"Already Completed (Skipped):   {skipped_count:6d}")
+        print(f"Combinations to Execute:       {len(pending_cells):6d}")
+        print("-" * 70)
+        print("Pending Combinations List:")
+        for idx, (sc, sd, cond) in enumerate(pending_cells, 1):
+            print(f"  {idx:4d}. Scenario: '{sc}', Seed: {sd}, Condition: '{cond}'")
+        print("=" * 70 + "\n")
+
+        return {
+            "dry_run": True,
+            "total": total_configured,
+            "skipped": skipped_count,
+            "pending": len(pending_cells),
+            "pending_cells": pending_cells
+        }
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_lock = threading.Lock()
+
     succeeded_count = 0
     failed_count = 0
+    consecutive_failures = 0
+    aborted_early = False
 
     logger.info(
-        f"Starting Ablation Sweep: {total_attempted} total cells "
+        f"Starting Ablation Sweep: {total_configured} total cells "
         f"({len(scenarios)} scenarios x {len(seeds)} seeds x {len(conditions)} conditions). "
-        f"Resuming: {skipped_count} skipped, {len(pending_cells)} pending."
+        f"Resuming: {skipped_count} skipped, {len(pending_cells)} pending. "
+        f"Timeout: {run_timeout_seconds}s, Max Failures: {max_consecutive_failures}."
     )
 
     sweep_start_time = time.time()
@@ -260,36 +338,63 @@ def run_ablation_sweep(
     def process_cell(cell: Tuple[str, int, str]) -> Dict[str, Any]:
         sc, sd, cond = cell
         logger.info(f"Executing cell: scenario='{sc}', seed={sd}, condition='{cond}'")
-        res = execute_single_cell(sc, sd, cond, steps, output_dir, repo_root)
-
-        # Thread-safe append to manifest file
-        with manifest_lock:
-            with open(manifest_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(res) + "\n")
-                f.flush()
-
+        res = execute_single_cell(
+            scenario=sc,
+            seed=sd,
+            condition=cond,
+            steps=steps,
+            output_dir=output_dir,
+            repo_root=repo_root,
+            timeout_sec=run_timeout_seconds
+        )
+        write_manifest_entry_flushed(manifest_path, res, lock=manifest_lock)
         return res
 
     if parallel > 1:
         with ThreadPoolExecutor(max_workers=parallel) as executor:
-            future_to_cell = {executor.submit(process_cell, cell): cell for cell in pending_cells}
+            future_to_cell = {
+                executor.submit(process_cell, cell): cell for cell in pending_cells
+            }
             for future in as_completed(future_to_cell):
                 try:
                     res = future.result()
-                    if res.get("exit_code") == 0:
+                    if res.get("exit_code") == 0 and "summary" in res:
                         succeeded_count += 1
+                        consecutive_failures = 0
                     else:
                         failed_count += 1
+                        consecutive_failures += 1
+
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.critical(
+                            f"ABORTING SWEEP EARLY: Reached maximum consecutive failures threshold "
+                            f"({max_consecutive_failures}). Aborting pool execution."
+                        )
+                        aborted_early = True
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+
                 except Exception as exc:
                     failed_count += 1
+                    consecutive_failures += 1
                     logger.error(f"Execution failed with exception: {exc}")
     else:
         for cell in pending_cells:
             res = process_cell(cell)
-            if res.get("exit_code") == 0:
+            if res.get("exit_code") == 0 and "summary" in res:
                 succeeded_count += 1
+                consecutive_failures = 0
             else:
                 failed_count += 1
+                consecutive_failures += 1
+
+            if consecutive_failures >= max_consecutive_failures:
+                logger.critical(
+                    f"ABORTING SWEEP EARLY: Reached maximum consecutive failures threshold "
+                    f"({max_consecutive_failures}). Aborting remaining sweep."
+                )
+                aborted_early = True
+                break
 
     total_wall_time = time.time() - sweep_start_time
 
@@ -297,18 +402,24 @@ def run_ablation_sweep(
     print("\n" + "=" * 70)
     print("Ablation Sweep Execution Summary")
     print("=" * 70)
-    print(f"Total Combinations Configured: {total_attempted:6d}")
+    print(f"Total Combinations Configured: {total_configured:6d}")
     print(f"Skipped (Already Resumed):     {skipped_count:6d}")
     print(f"Executed & Succeeded:          {succeeded_count:6d}")
     print(f"Executed & Failed:             {failed_count:6d}")
+    if aborted_early:
+        print(f"Status:                        ABORTED EARLY (Max Failures: {max_consecutive_failures})")
+    else:
+        print("Status:                        COMPLETED CLEANLY")
     print(f"Total Wall-Clock Time:         {total_wall_time:6.2f}s")
     print("=" * 70 + "\n")
 
     return {
-        "total": total_attempted,
+        "dry_run": False,
+        "total": total_configured,
         "skipped": skipped_count,
         "succeeded": succeeded_count,
         "failed": failed_count,
+        "aborted_early": aborted_early,
         "duration_sec": total_wall_time,
         "manifest": str(manifest_path)
     }
@@ -348,6 +459,23 @@ def parse_args(args=None):
         default=1,
         help="Number of concurrent subprocesses (default: 1 sequential run)"
     )
+    parser.add_argument(
+        "--run-timeout-seconds",
+        type=float,
+        default=900.0,
+        help="Timeout threshold in seconds per subprocess run cell (default: 900.0)"
+    )
+    parser.add_argument(
+        "--max-consecutive-failures",
+        type=int,
+        default=5,
+        help="Maximum consecutive cell failures allowed before aborting sweep early (default: 5)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned execution combinations without running subprocesses"
+    )
     return parser.parse_args(args)
 
 
@@ -363,7 +491,10 @@ def main(args=None):
         seeds=seed_list,
         steps=parsed.steps,
         output_dir=Path(parsed.output_dir) if parsed.output_dir else None,
-        parallel=parsed.parallel
+        parallel=parsed.parallel,
+        run_timeout_seconds=parsed.run_timeout_seconds,
+        max_consecutive_failures=parsed.max_consecutive_failures,
+        dry_run=parsed.dry_run
     )
 
 

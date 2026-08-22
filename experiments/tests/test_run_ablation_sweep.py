@@ -1,11 +1,13 @@
 """
 Unit tests for Ablation Experiment Matrix Sweep Orchestrator.
-Mocks subprocess invocation to verify flag construction, resumability, and error handling.
+Mocks subprocess invocation to verify flag construction, resumability, timeout handling,
+malformed JSON output handling, dry-run mode, and consecutive-failure aborts.
 """
 
 import sys
 import json
 import pytest
+import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -158,7 +160,8 @@ def test_subprocess_failure_recording(tmp_path):
             seeds=[42],
             conditions=["baseline"],
             steps=10,
-            output_dir=tmp_path
+            output_dir=tmp_path,
+            max_consecutive_failures=5
         )
 
     assert res["failed"] == 1
@@ -177,3 +180,115 @@ def test_subprocess_failure_recording(tmp_path):
     assert record["condition"] == "baseline"
     assert record["exit_code"] == 1
     assert "Error: TraCI connection failed" in record["error"]
+
+
+def test_subprocess_timeout_handling(tmp_path):
+    """Verify that a subprocess timeout is caught, recorded with exit_code 124, and does not crash the sweep."""
+    def mock_timeout_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=5.0, output="Partial output...", stderr="Simulated SUMO hang")
+
+    with patch("subprocess.run", side_effect=mock_timeout_run):
+        res = run_ablation_sweep(
+            scenarios=["grid_3_light"],
+            seeds=[42],
+            conditions=["baseline"],
+            steps=10,
+            output_dir=tmp_path,
+            run_timeout_seconds=5.0,
+            max_consecutive_failures=5
+        )
+
+    assert res["failed"] == 1
+    assert res["succeeded"] == 0
+
+    manifest_file = tmp_path / "sweep_manifest.jsonl"
+    assert manifest_file.exists()
+
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+
+    assert record["exit_code"] == 124
+    assert "TimeoutExpired" in record["error"]
+
+
+def test_malformed_json_output_handling(tmp_path):
+    """Verify that malformed/non-JSON stdout from backend/run.py is recorded as a failure and does not crash sweep."""
+    mock_run = MagicMock()
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "Traceback (most recent call last):\n  File run.py, line 42, in <module>\nValueError: Crash before json print\n"
+    mock_run.return_value.stderr = ""
+
+    with patch("subprocess.run", mock_run):
+        res = run_ablation_sweep(
+            scenarios=["grid_3_light"],
+            seeds=[42],
+            conditions=["baseline"],
+            steps=10,
+            output_dir=tmp_path,
+            max_consecutive_failures=5
+        )
+
+    assert res["failed"] == 1
+    assert res["succeeded"] == 0
+
+    manifest_file = tmp_path / "sweep_manifest.jsonl"
+    assert manifest_file.exists()
+
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+
+    assert record["exit_code"] == 1
+    assert "Malformed stdout output" in record["error"]
+
+
+def test_dry_run_mode(tmp_path):
+    """Verify --dry-run prints planned combinations list and returns without running subprocesses or creating files."""
+    mock_run = MagicMock()
+
+    with patch("subprocess.run", mock_run):
+        res = run_ablation_sweep(
+            scenarios=["grid_3_light", "grid_5_moderate"],
+            seeds=[1, 2],
+            conditions=["baseline", "signal_only"],
+            steps=10,
+            output_dir=tmp_path,
+            dry_run=True
+        )
+
+    assert res["dry_run"] is True
+    assert res["total"] == 8  # 2 scenarios * 2 seeds * 2 conditions
+    assert res["skipped"] == 0
+    assert res["pending"] == 8
+    assert mock_run.call_count == 0
+
+    # Ensure manifest file was NOT created during dry-run
+    manifest_file = tmp_path / "sweep_manifest.jsonl"
+    assert not manifest_file.exists()
+
+
+def test_max_consecutive_failures_abort(tmp_path):
+    """Verify sweep aborts early when consecutive failures reach max_consecutive_failures threshold."""
+    mock_run = MagicMock()
+    mock_run.return_value.returncode = 1
+    mock_run.return_value.stdout = ""
+    mock_run.return_value.stderr = "Systemic error: SUMO binary missing"
+
+    with patch("subprocess.run", mock_run):
+        res = run_ablation_sweep(
+            scenarios=["grid_3_light"],
+            seeds=[1, 2, 3, 4, 5],
+            conditions=["baseline"],
+            steps=10,
+            output_dir=tmp_path,
+            max_consecutive_failures=2
+        )
+
+    # Configured total cells: 5. Reached max failures = 2, so aborted early!
+    assert res["aborted_early"] is True
+    assert res["failed"] == 2
+    assert res["succeeded"] == 0
+    assert mock_run.call_count == 2
