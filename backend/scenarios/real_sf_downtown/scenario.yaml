@@ -1,0 +1,6 @@
+name: real_sf_downtown
+sumo:
+  config_file: osm.sumocfg
+  gui: true
+  net_file: osm.net.xml
+  route_file: osm.rou.xml

@@ -600,7 +600,7 @@ class AdvancedTrafficManager:
         try: 
             for tls_id, signal_data in self.signal_states.items(): 
                 try:
-                    if params:
+                    if params is not None:
                         signal_data['optimal_params'] = params 
 
                     controlled_lanes = signal_data['controlled_lanes'] 
@@ -621,7 +621,7 @@ class AdvancedTrafficManager:
 
                         for j, lane_id in enumerate(controlled_lanes): 
                             if j < len(state) and state[j] in ['g', 'G']: 
-                                edge_id = lane_id.split('_')[0] 
+                                edge_id = lane_id.rsplit('_', 1)[0] 
                                 if edge_id in self.traffic_metrics: 
                                     metrics = self.traffic_metrics[edge_id] 
                                     total_flow += metrics.flow_rate 
@@ -663,6 +663,11 @@ class AdvancedTrafficManager:
                     traci.trafficlight.setProgramLogic(tls_id, new_program) 
                      
                     # Additional measures for high congestion
+                    max_predicted_congestion = max([
+                        self.traffic_metrics[lane_id.rsplit('_', 1)[0]].predicted_congestion
+                        for lane_id in controlled_lanes
+                        if lane_id.rsplit('_', 1)[0] in self.traffic_metrics
+                    ], default=0.0)
                     if max_predicted_congestion > self.CONGESTION_THRESHOLDS['heavy']:
                         # Increase yellow time for safety
                         yellow_phases = [phase for phase in new_phases if 'y' in phase.state]

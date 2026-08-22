@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="handcrafted">
+  <node id="101" lat="37.7749" lon="-122.4194"/>
+  <node id="102" lat="37.7759" lon="-122.4194"/>
+  <node id="103" lat="37.7769" lon="-122.4194"/>
+  <node id="104" lat="37.7759" lon="-122.4184"/>
+  <node id="105" lat="37.7759" lon="-122.4204"/>
+
+  <way id="1001">
+    <nd ref="101"/>
+    <nd ref="102"/>
+    <nd ref="103"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="First Street"/>
+    <tag k="oneway" v="no"/>
+  </way>
+
+  <way id="1002">
+    <nd ref="104"/>
+    <nd ref="102"/>
+    <nd ref="105"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="Main Avenue"/>
+    <tag k="oneway" v="no"/>
+  </way>
+</osm>
