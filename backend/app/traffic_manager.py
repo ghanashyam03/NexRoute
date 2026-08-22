@@ -621,7 +621,7 @@ class AdvancedTrafficManager:
 
                         for j, lane_id in enumerate(controlled_lanes): 
                             if j < len(state) and state[j] in ['g', 'G']: 
-                                edge_id = lane_id.split('_')[0] 
+                                edge_id = lane_id.rsplit('_', 1)[0] 
                                 if edge_id in self.traffic_metrics: 
                                     metrics = self.traffic_metrics[edge_id] 
                                     total_flow += metrics.flow_rate 
