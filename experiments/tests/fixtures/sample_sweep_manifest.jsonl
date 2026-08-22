@@ -1,0 +1,5 @@
+{"scenario": "grid_3_light", "seed": 1, "condition": "baseline", "exit_code": 0, "duration_seconds": 12.5, "summary": {"avg_speed": 8.5, "avg_waiting_time": 4.2, "total_travel_time": 1500.0, "completed_trips": 120, "system_congestion": 0.05}}
+{"scenario": "grid_3_light", "seed": 2, "condition": "baseline", "exit_code": 0, "duration_seconds": 11.8, "summary": {"avg_speed": 8.7, "avg_waiting_time": 4.0, "total_travel_time": 1480.0, "completed_trips": 125, "system_congestion": 0.04}}
+{"scenario": "grid_3_light", "seed": 3, "condition": "baseline", "exit_code": 0, "duration_seconds": 12.1, "summary": {"avg_speed": 8.6, "avg_waiting_time": 4.1, "total_travel_time": 1490.0, "completed_trips": 122, "system_congestion": 0.045}}
+{"scenario": "grid_3_light", "seed": 1, "condition": "signal_only", "exit_code": 0, "duration_seconds": 15.2, "summary": {"avg_speed": 10.2, "avg_waiting_time": 2.1, "total_travel_time": 1200.0, "completed_trips": 135, "system_congestion": 0.02}}
+{"scenario": "grid_3_light", "seed": 2, "condition": "signal_only", "exit_code": 1, "duration_seconds": 2.1, "error": "SUMO process crash"}
