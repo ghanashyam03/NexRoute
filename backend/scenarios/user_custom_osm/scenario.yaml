@@ -1,0 +1,6 @@
+name: user_custom_osm
+sumo:
+  config_file: osm.sumocfg
+  gui: true
+  net_file: osm.net.xml
+  route_file: osm.rou.xml

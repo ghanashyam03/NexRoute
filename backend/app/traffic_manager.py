@@ -600,7 +600,7 @@ class AdvancedTrafficManager:
         try: 
             for tls_id, signal_data in self.signal_states.items(): 
                 try:
-                    if params:
+                    if params is not None:
                         signal_data['optimal_params'] = params 
 
                     controlled_lanes = signal_data['controlled_lanes'] 
