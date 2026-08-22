@@ -13,18 +13,9 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import yaml
 
-logger = logging.getLogger(__name__)
+from backend.scenario_tools.demand_shapes import generate_demands_for_profile
 
-# Demand level mapping to randomTrips period (seconds between vehicle departures).
-# Relative demand rates mapping:
-# - light: period = 2.0 (0.5 veh/sec = 1,800 veh/hr rate) - low density baseline for OSM networks
-# - moderate: period = 1.0 (1.0 veh/sec = 3,600 veh/hr rate) - standard urban traffic load
-# - heavy: period = 0.5 (2.0 veh/sec = 7,200 veh/hr rate) - heavy urban congestion & queueing
-DEMAND_PERIOD_MAP = {
-    "light": 2.0,
-    "moderate": 1.0,
-    "heavy": 0.5
-}
+logger = logging.getLogger(__name__)
 
 
 def locate_sumo_tools():
@@ -96,6 +87,7 @@ def import_osm_scenario(
     osm_file: Path,
     scenario_name: str = None,
     demand_level: str = "moderate",
+    demand_shape: str = "flat",
     output_dir: Path = None,
     seed: int = None
 ) -> Path:
@@ -103,14 +95,13 @@ def import_osm_scenario(
     osm_path = Path(osm_file).resolve()
     validate_osm_input(osm_path)
 
-    if demand_level not in DEMAND_PERIOD_MAP:
-        raise ValueError(f"Invalid demand_level '{demand_level}'. Must be one of {list(DEMAND_PERIOD_MAP.keys())}")
-
     sumo_home, netconvert_bin, random_trips_py = locate_sumo_tools()
 
     if scenario_name is None:
         clean_stem = osm_path.stem.replace(".", "_")
         scenario_name = f"osm_{clean_stem}"
+        if demand_shape != "flat":
+            scenario_name = f"{scenario_name}_{demand_shape}"
 
     if output_dir is None:
         repo_root = Path(__file__).resolve().parent.parent.parent
@@ -124,16 +115,6 @@ def import_osm_scenario(
     sumocfg_file = output_dir / "osm.sumocfg"
     scenario_yaml = output_dir / "scenario.yaml"
 
-    # Selected netconvert flags and technical rationale for OSM road network import:
-    # --osm-files: specifies the raw input OpenStreetMap XML extract file.
-    # --output-file: specifies target SUMO network file (.net.xml).
-    # --geometry.remove: simplifies edge geometries by removing collinear intermediate shape nodes without altering topology.
-    # --ramps.guess: enables automatic identification and geometric modeling of highway on/off ramps.
-    # --junctions.join: merges close adjacent nodes into unified complex junctions (improves realistic traffic light modeling).
-    # --tls.discard-simple: strips traffic lights placed on simple non-intersection nodes to avoid unnecessary stops.
-    # --tls.join: groups traffic signals belonging to the same physical intersection under unified controllers.
-    # --tls.guess-signals: infers traffic signal positions for major urban intersections when OSM signal tags are incomplete.
-    # --remove-edges.isolated: prunes disconnected road fragments that cannot reach or be reached by the main network graph.
     netconvert_cmd = [
         str(netconvert_bin),
         "--osm-files", str(osm_path),
@@ -155,25 +136,17 @@ def import_osm_scenario(
     # Post-validation check
     validate_generated_network(net_file)
 
-    # Vehicle demand generation via randomTrips.py
-    period = DEMAND_PERIOD_MAP[demand_level]
-    random_trips_cmd = [
-        sys.executable,
-        str(random_trips_py),
-        "-n", str(net_file),
-        "-r", str(route_file),
-        "-e", "3600",
-        "-p", str(period),
-        "--fringe-junctions",
-        "--validate"
-    ]
-    if seed is not None:
-        random_trips_cmd.extend(["-s", str(seed)])
-
-    logger.info(f"Generating demand with randomTrips.py: demand_level={demand_level} (period={period}s)...")
-    res_trips = subprocess.run(random_trips_cmd, capture_output=True, text=True)
-    if res_trips.returncode != 0:
-        raise RuntimeError(f"randomTrips.py failed for network '{net_file}':\n{res_trips.stderr}")
+    # Vehicle demand generation via demand_shapes helper
+    logger.info(f"Generating demand profile routes: level={demand_level}, shape={demand_shape}...")
+    generate_demands_for_profile(
+        net_file=net_file,
+        route_file=route_file,
+        demand_level=demand_level,
+        demand_shape=demand_shape,
+        duration=3600.0,
+        seed=seed,
+        random_trips_py=random_trips_py
+    )
 
     # Write osm.sumocfg
     sumocfg_content = f"""<configuration>
@@ -227,7 +200,14 @@ def parse_args(args=None):
         type=str,
         choices=["light", "moderate", "heavy"],
         default="moderate",
-        help="Vehicle demand level: 'light' (period=2.0s), 'moderate' (period=1.0s), or 'heavy' (period=0.5s) (default: 'moderate')"
+        help="Vehicle demand level: 'light', 'moderate', or 'heavy' (default: 'moderate')"
+    )
+    parser.add_argument(
+        "--demand-shape",
+        type=str,
+        choices=["flat", "single_peak", "two_peak"],
+        default="flat",
+        help="Vehicle demand profile shape: 'flat', 'single_peak', or 'two_peak' (default: 'flat')"
     )
     parser.add_argument(
         "--output-dir",
@@ -251,6 +231,7 @@ def main(args=None):
         osm_file=Path(parsed.osm_file),
         scenario_name=parsed.scenario_name,
         demand_level=parsed.demand_level,
+        demand_shape=parsed.demand_shape,
         output_dir=Path(parsed.output_dir) if parsed.output_dir else None,
         seed=parsed.seed
     )
