@@ -663,6 +663,11 @@ class AdvancedTrafficManager:
                     traci.trafficlight.setProgramLogic(tls_id, new_program) 
                      
                     # Additional measures for high congestion
+                    max_predicted_congestion = max([
+                        self.traffic_metrics[lane_id.rsplit('_', 1)[0]].predicted_congestion
+                        for lane_id in controlled_lanes
+                        if lane_id.rsplit('_', 1)[0] in self.traffic_metrics
+                    ], default=0.0)
                     if max_predicted_congestion > self.CONGESTION_THRESHOLDS['heavy']:
                         # Increase yellow time for safety
                         yellow_phases = [phase for phase in new_phases if 'y' in phase.state]
