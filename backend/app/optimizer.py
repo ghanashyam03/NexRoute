@@ -24,9 +24,9 @@ class Particle:
         # Enforce bounds with smooth clamping 
         for i, (lower, upper) in enumerate(bounds): 
             if self.position[i] < lower: 
-                self.position[i] = lower + abs(self.velocity[i]) * 0.1 
+                self.position[i] = min(upper, lower + abs(self.velocity[i]) * 0.1)
             elif self.position[i] > upper: 
-                self.position[i] = upper - abs(self.velocity[i]) * 0.1 
+                self.position[i] = max(lower, upper - abs(self.velocity[i]) * 0.1) 
  
 class ParticleSwarmOptimizer: 
     def __init__(self,  
