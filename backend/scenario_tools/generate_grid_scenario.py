@@ -87,7 +87,7 @@ def generate_grid_scenario(
         f"--grid.number={size}",
         f"--grid.length={length}",
         f"--default.lanenumber={lanes}",
-        "--default.junctions.type", "traffic_light",
+        "--default-junction-type", "traffic_light",
         "-o", str(net_file)
     ]
     logger.info(f"Generating grid network with netgenerate: size={size}x{size}, length={length}m, lanes={lanes}")

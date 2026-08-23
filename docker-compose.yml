@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Service 1: Run full unit test suite inside container
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexroute:latest
+    container_name: nexroute_test
+    command: pytest -v
+
+  # Service 2: Run a single headless batch simulation with host volume persistence
+  batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexroute:latest
+    container_name: nexroute_batch
+    volumes:
+      - ./results:/app/results
+    command: python backend/run.py --mode batch --scenario grid_3_light --seed 42 --steps 500 --headless
+
+  # Service 3: Run full ablation experiment matrix sweep with host volume persistence
+  sweep:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexroute:latest
+    container_name: nexroute_sweep
+    volumes:
+      - ./experiments/results:/app/experiments/results
+    command: python experiments/run_ablation_sweep.py --scenarios grid_3_light --seeds 1,2,3,4,5 --steps 500
+
+  # Service 4: Run results aggregation, statistical testing, and visualization pipeline
+  analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexroute:latest
+    container_name: nexroute_analysis
+    volumes:
+      - ./experiments/results:/app/experiments/results
+    command: >
+      sh -c "python experiments/aggregate_results.py &&
+             python experiments/analyze_results.py &&
+             python experiments/visualize_results.py"

@@ -1,0 +1,6 @@
+# Test-only dependencies for running full NexRoute unit test suite inside containers
+pytest>=8.0.0
+pytest-asyncio
+pytest-cov
+typeguard
+anyio
