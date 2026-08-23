@@ -4,3 +4,7 @@ numpy
 networkx
 scipy
 PyYAML>=6.0
+# Analysis & Visualization Pipeline Dependencies
+pandas
+pyarrow
+matplotlib
