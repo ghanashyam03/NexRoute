@@ -205,7 +205,8 @@ def run_ablation_sweep(
     conditions: List[str] = None,
     steps: int = 500,
     output_dir: Path = None,
-    parallel: int = 1
+    parallel: int = 1,
+    dry_run: bool = False
 ) -> Dict[str, Any]:
     """
     Run full ablation experiment matrix over scenarios x seeds x conditions.
@@ -254,6 +255,25 @@ def run_ablation_sweep(
         f"({len(scenarios)} scenarios x {len(seeds)} seeds x {len(conditions)} conditions). "
         f"Resuming: {skipped_count} skipped, {len(pending_cells)} pending."
     )
+
+    if dry_run:
+        print("\n" + "=" * 70)
+        print(" [DRY RUN MODE] - Simulation Subprocesses Will NOT Be Launched")
+        print("=" * 70)
+        print(f"Scenarios ({len(scenarios)}): {', '.join(scenarios)}")
+        print(f"Seeds ({len(seeds)}):     {seeds}")
+        print(f"Conditions ({len(conditions)}): {', '.join(conditions)}")
+        print(f"Total Runs:       {total_attempted}")
+        print(f"Pending Runs:     {len(pending_cells)}")
+        print("=" * 70 + "\n")
+        return {
+            "total": total_attempted,
+            "skipped": skipped_count,
+            "succeeded": 0,
+            "failed": 0,
+            "duration_sec": 0.0,
+            "manifest": str(manifest_path)
+        }
 
     sweep_start_time = time.time()
 
@@ -348,6 +368,11 @@ def parse_args(args=None):
         default=1,
         help="Number of concurrent subprocesses (default: 1 sequential run)"
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned sweep execution matrix without launching simulation subprocesses"
+    )
     return parser.parse_args(args)
 
 
@@ -363,7 +388,8 @@ def main(args=None):
         seeds=seed_list,
         steps=parsed.steps,
         output_dir=Path(parsed.output_dir) if parsed.output_dir else None,
-        parallel=parsed.parallel
+        parallel=parsed.parallel,
+        dry_run=parsed.dry_run
     )
 
 

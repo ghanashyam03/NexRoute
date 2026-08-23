@@ -137,6 +137,11 @@ class AdvancedTrafficManager:
         self.speed_control_pso = None
         self.route_pso = None
 
+        # Activation & Congestion counters for diagnostics (no behavior change)
+        self.vsl_activations = 0
+        self.routing_reroutes = 0
+        self.max_predicted_congestion_observed = 0.0
+
         # Initialize driver assistance without vehicle ID
         self.driver_assistance = DriverAssistance()
 
@@ -568,6 +573,10 @@ class AdvancedTrafficManager:
              
             # Update the system's traffic metrics 
             self.traffic_metrics = edge_metrics 
+            if edge_metrics:
+                curr_max_pred = float(max(m.predicted_congestion for m in edge_metrics.values() if m.predicted_congestion is not None))
+                if curr_max_pred > self.max_predicted_congestion_observed:
+                    self.max_predicted_congestion_observed = curr_max_pred
             return edge_metrics 
              
         except Exception as e: 
@@ -798,6 +807,7 @@ class AdvancedTrafficManager:
                      
                     # Apply speed limit using TraCI
                     traci.edge.setMaxSpeed(edge_id, new_speed) 
+                    self.vsl_activations += 1
                      
                     logger.debug(f"Applied speed limit to edge {edge_id}: {new_speed:.2f} m/s (factor: {speed_factor:.2f})") 
                      
@@ -1009,6 +1019,7 @@ class AdvancedTrafficManager:
                             # Verify the new route is valid and different from current
                             if new_route != current_route[current_index:]:
                                 traci.vehicle.setRoute(vehicle_id, new_route)
+                                self.routing_reroutes += 1
                                 logger.info(f"Successfully rerouted vehicle {vehicle_id} with new route")
                                 
                                 state.reroute_attempts += 1 
@@ -1038,7 +1049,10 @@ class AdvancedTrafficManager:
                 'avg_trip_duration': np.mean([traci.vehicle.getTimeLoss(vid) for vid in traci.vehicle.getIDList()]) if traci.vehicle.getIDList() else 0, 
                 'avg_acceleration': np.mean([v.acceleration for v in self.vehicle_states.values()]) if self.vehicle_states else 0, 
                 'total_stops': sum(m.stop_count for m in self.traffic_metrics.values()), 
-                'predicted_congestion': np.mean([m.predicted_congestion for m in self.traffic_metrics.values()]) if self.traffic_metrics else 0
+                'predicted_congestion': np.mean([m.predicted_congestion for m in self.traffic_metrics.values()]) if self.traffic_metrics else 0,
+                'vsl_activations': int(self.vsl_activations),
+                'routing_reroutes': int(self.routing_reroutes),
+                'max_predicted_congestion_observed': float(self.max_predicted_congestion_observed)
             } 
              
             logger.info(f"System Performance: " 
