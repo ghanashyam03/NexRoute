@@ -80,6 +80,12 @@ def parse_args(args=None):
         default="api",
         help="Execution mode: 'api' to start Flask server or 'batch' for scripted execution (default: 'api')"
     )
+    parser.add_argument(
+        "--congestion-weights",
+        type=str,
+        default=None,
+        help="Comma-separated 7 float values for congestion prediction weight vector override"
+    )
     return parser.parse_args(args)
 
 
@@ -99,6 +105,11 @@ def run_batch_mode(parsed_args):
             enable_vsl=parsed_args.enable_vsl,
             enable_routing=parsed_args.enable_routing
         )
+
+        if getattr(parsed_args, 'congestion_weights', None):
+            raw_w = [float(x.strip()) for x in parsed_args.congestion_weights.split(",")]
+            from app.congestion_weight_search import normalize_weights
+            tm.congestion_weights = normalize_weights(raw_w)
 
         tm.run_batch_simulation(steps=parsed_args.steps)
 

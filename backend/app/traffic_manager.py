@@ -378,15 +378,16 @@ class AdvancedTrafficManager:
             
             occupancy_factor = min(1.0, current_occupancy / 100)
  
-            # Weighted combination of all factors (removed time-based factors)
+            # Weighted combination of all factors using configurable weights vector
+            w = getattr(self, 'congestion_weights', [0.25, 0.20, 0.15, 0.15, 0.10, 0.10, 0.05])
             prediction = (
-                0.25 * metrics.congestion_index +     # Current congestion (highest weight)
-                0.20 * historical_trend +             # Historical pattern
-                0.15 * density_factor +               # Current density impact
-                0.15 * queue_factor +                 # Queue impact
-                0.10 * speed_factor +                 # Speed impact
-                0.10 * occupancy_factor +             # Current occupancy
-                0.05 * max(0, congestion_rate)        # Rate of change (trend)
+                w[0] * metrics.congestion_index +     # Current congestion (highest weight)
+                w[1] * historical_trend +             # Historical pattern
+                w[2] * density_factor +               # Current density impact
+                w[3] * queue_factor +                 # Queue impact
+                w[4] * speed_factor +                 # Speed impact
+                w[5] * occupancy_factor +             # Current occupancy
+                w[6] * max(0, congestion_rate)        # Rate of change (trend)
             )
  
             # Apply downstream congestion influence
