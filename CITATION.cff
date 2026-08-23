@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use NexRoute or its experimental suite in your research, please cite it using the metadata below."
+title: "NexRoute: Open-Source Framework for Multi-Agent Urban Traffic Signal, Speed Limit, and Route Optimization"
+authors:
+  - family-names: "UPDATE BEFORE SUBMISSION"
+    given-names: "UPDATE BEFORE SUBMISSION"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/ghanashyam03/NexRoute"
+url: "https://github.com/ghanashyam03/NexRoute"
+abstract: "NexRoute is a modular Python and TraCI/SUMO platform for multi-agent urban traffic optimization, featuring Particle Swarm Optimization (PSO) signal timing, Variable Speed Limits (VSL), adaptive dynamic rerouting, scenario generators, and automated ablation experiment sweep orchestration."
+keywords:
+  - "traffic optimization"
+  - "particle swarm optimization"
+  - "sumo"
+  - "ablation study"
+  - "intelligent transportation systems"
+version: "1.0.0"
+date-released: "2026-08-23"
