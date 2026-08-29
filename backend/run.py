@@ -86,6 +86,11 @@ def parse_args(args=None):
         default=None,
         help="Comma-separated 7 float values for congestion prediction weight vector override"
     )
+    parser.add_argument(
+        "--vsl-signal-aware",
+        action="store_true",
+        help="Enable exploratory signal-phase-aware VSL speed limit bypass on green approaches"
+    )
     return parser.parse_args(args)
 
 
@@ -103,7 +108,8 @@ def run_batch_mode(parsed_args):
             routing_strategy=parsed_args.routing_strategy,
             enable_signals=parsed_args.enable_signals,
             enable_vsl=parsed_args.enable_vsl,
-            enable_routing=parsed_args.enable_routing
+            enable_routing=parsed_args.enable_routing,
+            vsl_signal_aware=parsed_args.vsl_signal_aware
         )
 
         if getattr(parsed_args, 'congestion_weights', None):

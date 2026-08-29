@@ -43,7 +43,8 @@ class AdvancedTrafficManager:
         routing_strategy: Optional[Union[RoutingStrategy, str]] = None,
         enable_signals: Optional[bool] = None,
         enable_vsl: Optional[bool] = None,
-        enable_routing: Optional[bool] = None
+        enable_routing: Optional[bool] = None,
+        vsl_signal_aware: bool = False
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -52,6 +53,7 @@ class AdvancedTrafficManager:
         self.sumo_config = dict(scenario_config.sumo_config)
         self.seed = seed
         self.headless = headless
+        self.vsl_signal_aware = vsl_signal_aware
 
         if headless:
             self.scenario_config.gui = False
@@ -804,7 +806,18 @@ class AdvancedTrafficManager:
                     # Apply new speed limit with improved bounds 
                     new_speed = normal_speed * speed_factor 
                     new_speed = max(3.0, min(new_speed, normal_speed))  # Increased minimum speed
-                     
+
+                    # Exploratory signal-aware guard: if downstream TLS has active green phase, bypass speed reduction
+                    if self.vsl_signal_aware:
+                        try:
+                            if edge and edge.getTLS():
+                                tls_id = edge.getTLS().getID()
+                                state = traci.trafficlight.getRedYellowGreenState(tls_id)
+                                if 'G' in state or 'g' in state:
+                                    new_speed = normal_speed
+                        except Exception:
+                            pass
+
                     # Apply speed limit using TraCI
                     traci.edge.setMaxSpeed(edge_id, new_speed) 
                     self.vsl_activations += 1
