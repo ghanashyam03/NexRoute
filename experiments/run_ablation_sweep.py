@@ -64,6 +64,20 @@ ABLATION_CONDITIONS: Dict[str, Dict[str, Any]] = {
         "enable_routing": True,
         "routing_strategy": "adaptive"
     },
+    "signal_and_vsl": {
+        "enable_signals": True,
+        "signal_strategy": "pso",
+        "enable_vsl": True,
+        "enable_routing": False,
+        "routing_strategy": "static"
+    },
+    "vsl_and_routing": {
+        "enable_signals": False,
+        "signal_strategy": "webster",
+        "enable_vsl": True,
+        "enable_routing": True,
+        "routing_strategy": "adaptive"
+    },
     "combined": {
         "enable_signals": True,
         "signal_strategy": "pso",
