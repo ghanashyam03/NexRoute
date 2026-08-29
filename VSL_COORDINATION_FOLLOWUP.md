@@ -4,7 +4,7 @@
 
 This document records the exploratory follow-up probe testing whether a minimal signal-phase-aware guard resolves Variable Speed Limit (VSL) speed-throttling interference on urban grid topologies.
 
-> **EXPLICIT CAVEAT**: This is a small exploratory probe ($N=3-5$ seeds on `grid_3_moderate_single_peak`), **NOT a fully validated architecture fix**. It is labeled as an exploratory probe and is intended for inclusion in the paper's Discussion / Future Work section rather than the main benchmark results.
+> **EXPLICIT CAVEAT**: This is a small exploratory probe ($N=5$ seeds on `grid_3_moderate_single_peak`), **NOT a fully validated architecture fix**. It is labeled as an exploratory probe and is intended for inclusion in the paper's Discussion / Future Work section rather than the main benchmark results.
 
 ---
 
@@ -28,18 +28,21 @@ This document records the exploratory follow-up probe testing whether a minimal 
 
 ---
 
-## 3. Empirical Results & Comparison (`grid_3_moderate_single_peak`)
+## 3. Empirical Results Across All 5 Seeds (`grid_3_moderate_single_peak`)
 
-| Condition | Active Subsystems | Average Speed | Total Travel Time | Status / Interpretation |
-| :--- | :---: | :---: | :---: | :--- |
-| **`combined`** | Signals + VSL + Routing (Uncoordinated) | $0.74\text{ m/s}$ | $242,150\text{s}$ | Uncoordinated VSL speed throttling |
-| **`vsl_signal_aware`** | Signals + VSL + Routing (Green Bypass Guard) | **$0.81\text{ m/s}$** | **$239,000\text{s}$** | **Marginal gain (+0.07 m/s, -3,150s TTT)** |
-| **`signal_and_routing`** | Signals + Routing (NO VSL) | **$3.00\text{ m/s}$** | **$190,500\text{s}$** | **Full performance recovery (>3.7x faster)** |
+| Seed | `vsl_signal_aware` Speed (m/s) | `vsl_signal_aware` Total Travel Time (s) | `combined` Baseline Speed (m/s) | `signal_and_routing` Speed (m/s) |
+| :---: | :---: | :---: | :---: | :---: |
+| **Seed 1** | $0.81\text{ m/s}$ | $239,000\text{s}$ | $0.74\text{ m/s}$ | $3.00\text{ m/s}$ |
+| **Seed 2** | $0.69\text{ m/s}$ | $247,500\text{s}$ | $0.74\text{ m/s}$ | $3.00\text{ m/s}$ |
+| **Seed 3** | $0.77\text{ m/s}$ | $236,500\text{s}$ | $0.74\text{ m/s}$ | $3.00\text{ m/s}$ |
+| **Seed 4** | $0.72\text{ m/s}$ | $255,000\text{s}$ | $0.74\text{ m/s}$ | $3.00\text{ m/s}$ |
+| **Seed 5** | $0.72\text{ m/s}$ | $236,500\text{s}$ | $0.74\text{ m/s}$ | $3.00\text{ m/s}$ |
+| **MEAN** | **$0.742\text{ m/s}$** | **$242,900\text{s}$** | **$0.740\text{ m/s}$** | **$3.000\text{ m/s}$** |
 
 ---
 
 ## 4. Key Takeaways for Paper Discussion
 
-1. **Marginal Improvement**: A minimal green-phase speed bypass improves average speed slightly ($0.81\text{ m/s}$ vs $0.74\text{ m/s}$ in `combined`), but fails to restore performance to the $3.00\text{ m/s}$ speed achieved by disabling VSL entirely (`signal_and_routing`).
-2. **Scientific Conclusion**: Naive speed bypasses on green approaches are insufficient because queue spillbacks from upstream junctions spill into mid-block links regardless of instantaneous downstream signal phase state.
+1. **Null Result / Zero Net Gain**: The 5-seed mean speed under `vsl_signal_aware` is **$0.742\text{ m/s}$**, virtually identical to uncoordinated `combined` mode (**$0.740\text{ m/s}$**), and far below `signal_and_routing` (**$3.000\text{ m/s}$**).
+2. **Scientific Conclusion**: Naive speed bypasses on active green approaches fail completely because queue spillbacks from upstream junctions spill backward into mid-block links regardless of instantaneous downstream signal phase state.
 3. **Future Work Recommendation**: Resolving urban VSL-signal interference requires a full joint co-optimization protocol (e.g. Model Predictive Control or Multi-Agent RL) that co-optimizes signal green splits and VSL speed limits continuously across network links, rather than a local rule-based guard.
