@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Set, Any
 
 @dataclass 
-class VehicleState: 
+class VehicleState:   
     id: str 
     type: str 
     position: Tuple[float, float] 

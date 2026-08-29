@@ -23,6 +23,9 @@ To systematically decompose performance contributions, NexRoute defines a 5-cond
 | **`signal_only`** | `--enable-signals --no-enable-vsl --no-enable-routing` | `pso` | `static` | Isolated signal optimization: Particle Swarm Optimization (PSO) adaptive green phase allocation, static routing. |
 | **`vsl_only`** | `--no-enable-signals --enable-vsl --no-enable-routing` | `webster` | `static` | Isolated VSL optimization: Dynamic edge speed limit adjustments based on predicted congestion, fixed signal timing. |
 | **`routing_only`** | `--no-enable-signals --no-enable-vsl --enable-routing` | `webster` | `adaptive` | Isolated dynamic routing: PSO-weighted dynamic rerouting around congested links, fixed signal timing. |
+| **`signal_and_routing`** | `--enable-signals --no-enable-vsl --enable-routing` | `pso` | `adaptive` | Dual signal + routing control: Concurrent PSO signal timing and dynamic route optimization (VSL disabled). |
+| **`signal_and_vsl`** | `--enable-signals --enable-vsl --no-enable-routing` | `pso` | `static` | Dual signal + VSL control: Concurrent PSO signal timing and VSL speed limit adjustments (routing static). |
+| **`vsl_and_routing`** | `--no-enable-signals --enable-vsl --enable-routing` | `webster` | `adaptive` | Dual VSL + routing control: Concurrent VSL speed control and dynamic route optimization (Webster signals). |
 | **`combined`** | `--enable-signals --enable-vsl --enable-routing` | `pso` | `adaptive` | Full integrated system: Concurrent PSO signal timing, VSL speed control, and dynamic route optimization. |
 
 ### Quoted Command-Line Invocations from Code
@@ -30,26 +33,38 @@ As defined in `ABLATION_CONDITIONS` within `experiments/run_ablation_sweep.py`:
 
 ```python
 ABLATION_CONDITIONS = {
-    "baseline": [
-        "--enable-signals", "false", "--enable-vsl", "false", "--enable-routing", "false",
-        "--signal-strategy", "webster", "--routing-strategy", "StaticRoutingStrategy"
-    ],
-    "signal_only": [
-        "--enable-signals", "true", "--enable-vsl", "false", "--enable-routing", "false",
-        "--signal-strategy", "pso", "--routing-strategy", "StaticRoutingStrategy"
-    ],
-    "vsl_only": [
-        "--enable-signals", "false", "--enable-vsl", "true", "--enable-routing", "false",
-        "--signal-strategy", "webster", "--routing-strategy", "StaticRoutingStrategy"
-    ],
-    "routing_only": [
-        "--enable-signals", "false", "--enable-vsl", "false", "--enable-routing", "true",
-        "--signal-strategy", "webster", "--routing-strategy", "AdaptiveRoutingStrategy"
-    ],
-    "combined": [
-        "--enable-signals", "true", "--enable-vsl", "true", "--enable-routing", "true",
-        "--signal-strategy", "pso", "--routing-strategy", "AdaptiveRoutingStrategy"
-    ]
+    "baseline": {
+        "enable_signals": False, "signal_strategy": "webster",
+        "enable_vsl": False, "enable_routing": False, "routing_strategy": "static"
+    },
+    "signal_only": {
+        "enable_signals": True, "signal_strategy": "pso",
+        "enable_vsl": False, "enable_routing": False, "routing_strategy": "static"
+    },
+    "vsl_only": {
+        "enable_signals": False, "signal_strategy": "webster",
+        "enable_vsl": True, "enable_routing": False, "routing_strategy": "static"
+    },
+    "routing_only": {
+        "enable_signals": False, "signal_strategy": "webster",
+        "enable_vsl": False, "enable_routing": True, "routing_strategy": "adaptive"
+    },
+    "signal_and_routing": {
+        "enable_signals": True, "signal_strategy": "pso",
+        "enable_vsl": False, "enable_routing": True, "routing_strategy": "adaptive"
+    },
+    "signal_and_vsl": {
+        "enable_signals": True, "signal_strategy": "pso",
+        "enable_vsl": True, "enable_routing": False, "routing_strategy": "static"
+    },
+    "vsl_and_routing": {
+        "enable_signals": False, "signal_strategy": "webster",
+        "enable_vsl": True, "enable_routing": True, "routing_strategy": "adaptive"
+    },
+    "combined": {
+        "enable_signals": True, "signal_strategy": "pso",
+        "enable_vsl": True, "enable_routing": True, "routing_strategy": "adaptive"
+    }
 }
 ```
 

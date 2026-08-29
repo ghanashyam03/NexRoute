@@ -22,16 +22,22 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-# Standard 5 ablation conditions
-DEFAULT_CONDITIONS = ["baseline", "signal_only", "vsl_only", "routing_only", "combined"]
+# Full 8 ablation conditions
+DEFAULT_CONDITIONS = [
+    "baseline", "signal_only", "vsl_only", "routing_only",
+    "signal_and_routing", "signal_and_vsl", "vsl_and_routing", "combined"
+]
 
 # Publication Palette
 CONDITION_COLORS = {
-    "baseline": "#4C72B0",      # Slate steel blue
-    "signal_only": "#DD8452",   # Coral orange
-    "vsl_only": "#55A868",      # Sage green
-    "routing_only": "#C44E52",  # Crimson red
-    "combined": "#8172B3"       # Deep purple
+    "baseline": "#4C72B0",            # Slate steel blue
+    "signal_only": "#DD8452",         # Coral orange
+    "vsl_only": "#55A868",            # Sage green
+    "routing_only": "#C44E52",        # Crimson red
+    "signal_and_routing": "#00A86B",  # Jade emerald green (Highlight best dual mode!)
+    "signal_and_vsl": "#D95F02",      # Rust orange
+    "vsl_and_routing": "#7570B3",      # Soft indigo
+    "combined": "#8172B3"             # Deep purple
 }
 
 # Metrics where lower values represent better performance
@@ -186,10 +192,12 @@ def plot_forest_plot(
         linestyle = "--" if is_sparse else "-"
 
         # Plot error bar CI line
+        err_low = max(0.0, d_val - ci_low)
+        err_high = max(0.0, ci_high - d_val)
         ax.errorbar(
             x=d_val,
             y=y_pos,
-            xerr=[[d_val - ci_low], [ci_high - d_val]],
+            xerr=[[err_low], [err_high]],
             fmt=marker,
             color=color,
             ecolor=color,

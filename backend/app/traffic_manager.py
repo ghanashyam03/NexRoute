@@ -1004,28 +1004,15 @@ class AdvancedTrafficManager:
                     current_index = traci.vehicle.getRouteIndex(vehicle_id)
                     current_edge = current_route[current_index]
                     
-                    # Set routing mode to use aggregated travel times
-                    traci.vehicle.setRoutingMode(vehicle_id, 1)  # 1 = routing mode with aggregated times
-                    
-                    # Calculate new route using Dijkstra's algorithm
+                    # Use SUMO internal C++ routing engine with adapted travel times
                     try:
-                        new_route = traci.simulation.findRoute(
-                            current_edge,
-                            state.destination,
-                            routingMode=1  # Use aggregated times
-                        ).edges
-                        
-                        if new_route and current_edge in new_route:
-                            # Verify the new route is valid and different from current
-                            if new_route != current_route[current_index:]:
-                                traci.vehicle.setRoute(vehicle_id, new_route)
-                                self.routing_reroutes += 1
-                                logger.info(f"Successfully rerouted vehicle {vehicle_id} with new route")
-                                
-                                state.reroute_attempts += 1 
-                                state.last_reroute_time = current_time
+                        traci.vehicle.rerouteTraveltime(vehicle_id)
+                        self.routing_reroutes += 1
+                        logger.info(f"Successfully rerouted vehicle {vehicle_id} using adapted travel times")
+                        state.reroute_attempts += 1 
+                        state.last_reroute_time = current_time
                     except traci.exceptions.TraCIException as e:
-                        logger.warning(f"Failed to find new route for vehicle {vehicle_id}: {str(e)}")
+                        logger.warning(f"Failed to reroute vehicle {vehicle_id}: {str(e)}")
                         continue
                      
                 except Exception as e: 

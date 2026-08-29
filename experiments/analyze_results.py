@@ -19,21 +19,31 @@ import scipy.stats as stats
 
 logger = logging.getLogger(__name__)
 
-# Standard 5 ablation conditions
-DEFAULT_CONDITIONS = ["baseline", "signal_only", "vsl_only", "routing_only", "combined"]
+# All 8 ablation conditions
+DEFAULT_CONDITIONS = [
+    "baseline", "signal_only", "vsl_only", "routing_only",
+    "signal_and_routing", "signal_and_vsl", "vsl_and_routing", "combined"
+]
 
-# All 10 comparison pairs (Condition A vs Condition B)
+# Comparison pairs (Condition A vs Condition B)
 COMPARISON_PAIRS: List[Tuple[str, str, str]] = [
     # 1. Baseline comparisons
     ("signal_only", "baseline", "signal_only_vs_baseline"),
     ("vsl_only", "baseline", "vsl_only_vs_baseline"),
     ("routing_only", "baseline", "routing_only_vs_baseline"),
+    ("signal_and_routing", "baseline", "signal_and_routing_vs_baseline"),
+    ("signal_and_vsl", "baseline", "signal_and_vsl_vs_baseline"),
+    ("vsl_and_routing", "baseline", "vsl_and_routing_vs_baseline"),
     ("combined", "baseline", "combined_vs_baseline"),
-    # 2. Pairwise among non-baseline components
+    # 2. Key dual-component vs single-component comparisons
+    ("signal_and_routing", "signal_only", "signal_and_routing_vs_signal_only"),
+    ("signal_and_routing", "routing_only", "signal_and_routing_vs_routing_only"),
+    ("signal_and_routing", "combined", "signal_and_routing_vs_combined"),
+    # 3. Pairwise among non-baseline components
     ("signal_only", "vsl_only", "signal_only_vs_vsl_only"),
     ("signal_only", "routing_only", "signal_only_vs_routing_only"),
     ("vsl_only", "routing_only", "vsl_only_vs_routing_only"),
-    # 3. Synergistic combined vs individual components
+    # 4. Synergistic combined vs individual components
     ("combined", "signal_only", "combined_vs_signal_only"),
     ("combined", "vsl_only", "combined_vs_vsl_only"),
     ("combined", "routing_only", "combined_vs_routing_only"),
