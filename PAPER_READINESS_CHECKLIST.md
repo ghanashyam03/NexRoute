@@ -10,14 +10,14 @@
 
 | Scenario | `baseline` | `signal_only` | `vsl_only` | `routing_only` | `signal_and_vsl` | `signal_and_routing` | `vsl_and_routing` | `combined` | Status / Power Alignment |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **`grid_3_light`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=8$ | $N=9$ | $N=9$ | $N=10$ | **High Power ($N=8-10$ per cell)** |
-| **`grid_3_moderate_single_peak`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=0$ | $N=5$ | $N=2$ | $N=10$ | **Primary Subset Fully Powered ($N=10$)** |
-| **`grid_3_moderate_two_peak`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=0$ | $N=0$ | $N=0$ | $N=10$ | Primary Subset Fully Powered ($N=10$) |
-| **`grid_5_moderate`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=0$ | $N=0$ | $N=0$ | $N=10$ | Primary Subset Fully Powered ($N=10$) |
+| **`grid_3_light`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=9$ | $N=10$ | $N=10$ | $N=10$ | **Fully Powered ($N=9-10$ per cell)** |
+| **`grid_3_moderate_single_peak`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | **100% Balanced ($N=10$ per cell)** |
+| **`grid_3_moderate_two_peak`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | **100% Balanced ($N=10$ per cell)** |
+| **`grid_5_moderate`** | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | $N=10$ | **100% Balanced ($N=10$ per cell)** |
 | **`real_sf_downtown`** | $N=2$ | $N=1$ | $N=1$ | $N=1$ | $N=0$ | $N=0$ | $N=0$ | $N=1$ | **Exploratory Real-World Case Study Only** |
 
 - **Diagnosis Artifact**: Verified in [`SEED_ALIGNMENT_DIAGNOSIS.md`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/SEED_ALIGNMENT_DIAGNOSIS.md).
-- **Parquet Verification**: Clean dataset containing 239 total simulation runs saved at [`experiments/results/aggregated_results.parquet`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/experiments/results/aggregated_results.parquet).
+- **Parquet Verification**: Clean dataset containing 325 total simulation runs saved at [`experiments/results/aggregated_results.parquet`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/experiments/results/aggregated_results.parquet).
 
 ---
 
@@ -61,7 +61,7 @@
 
 ## Section 5: Statistical Rigor & Corrected P-Values
 
-- **Statistical Analysis File**: [`experiments/results/statistical_analysis.csv`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/experiments/results/statistical_analysis.csv) (1,400 paired comparisons).
+- **Statistical Analysis File**: [`experiments/results/statistical_analysis.csv`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/experiments/results/statistical_analysis.csv) (1,792 paired comparisons).
 - **Hypothesis Testing Methodology**: Non-parametric Wilcoxon signed-rank paired tests + Benjamini-Hochberg False Discovery Rate (FDR) $q$-value correction across all metrics.
 - **Empirical Significance Summary (`grid_3_moderate_single_peak`, $N=10$)**:
   - `signal_and_routing` vs `baseline`: Average Speed $3.00\text{ m/s}$ vs $0.75\text{ m/s}$ ($p < 0.005$, $q < 0.005$, **Statistically Significant Speed Recovery**).
@@ -72,7 +72,7 @@
 ## Section 6: Domain-Mismatch & VSL Speed-Floor Findings
 
 - **Code Citation**: Hardcoded $3.0\text{ m/s}$ speed floor located at [`backend/app/traffic_manager.py:L808`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/backend/app/traffic_manager.py#L808). Heuristic penalty weights ($0.5, 0.4, 0.3, 0.2$) documented in [`METHODOLOGY.md: Section 6`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/METHODOLOGY.md).
-- **Exploratory Probe Result**: Documented in [`VSL_COORDINATION_FOLLOWUP.md`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/VSL_COORDINATION_FOLLOWUP.md). Minimal green-phase speed bypass (`vsl_signal_aware`) yields marginal speed recovery ($0.81\text{ m/s}$ vs $0.74\text{ m/s}$), proving naive speed bypasses cannot resolve urban component interference without joint signal-speed phase co-optimization.
+- **Exploratory Probe Result**: Documented in [`VSL_COORDINATION_FOLLOWUP.md`](file:///c:/Users/ghana/OneDrive/Desktop/NexRoute/VSL_COORDINATION_FOLLOWUP.md). Minimal green-phase speed bypass (`vsl_signal_aware`) yields marginal speed recovery ($0.742\text{ m/s}$ vs $0.740\text{ m/s}$), proving naive speed bypasses cannot resolve urban component interference without joint signal-speed phase co-optimization.
 
 ---
 
@@ -89,10 +89,4 @@
 ## Section 8: Final Push & Branch Workflow Verification
 
 - **Branch Name**: `feat/24-final-paper-prep`
-- **Commit History**:
-  1. `Commit 1` (`docs(diagnosis): add SEED_ALIGNMENT_DIAGNOSIS.md`)
-  2. `Commit 2` (`feat(sweep): complete dual-condition seed top-up and re-analyze stats`)
-  3. `Commit 3` (`feat(vsl): document VSL parameter limitations and add exploratory signal-aware probe`)
-  4. `Commit 4` (`feat(visualization): add Candidate (c) mechanism time-series and Candidate (e) threshold-gating figures`)
-  5. `Commit 5` (`docs(readiness): generate final paper readiness checklist`)
-- **Git Push Command**: `git push -u origin feat/24-final-paper-prep`
+- **Git Push Command**: `git push origin feat/24-final-paper-prep`
