@@ -70,6 +70,7 @@ class TestEdgeMetricsCalculation(unittest.TestCase):
         tm.edge_congestion_history = defaultdict(list)
         tm.PCU_VALUES = {"passenger": 1.0, "bus": 2.0, "truck": 1.5}
         tm.CONGESTION_HISTORY_SIZE = 10
+        tm.max_predicted_congestion_observed = 0.0
 
         # Mock NetworkX graph capacity
         tm.network_graph = {
