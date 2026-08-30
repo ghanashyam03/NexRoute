@@ -22,18 +22,18 @@
 
 \begin{document}
 
-\title{Unintended Interference in Multi-Modal Urban Traffic Control: An Empirical Ablation Study of Signals, Routing, and Variable Speed Limits}
+\title{Unintended Subsystem Interference in Multi-Modal Urban Traffic Control: An Empirical Ablation Study of Signals, Routing, and Variable Speed Limits}
 
-\author{Ghanashyam~Author$^{1}$,~\IEEEmembership{Member,~IEEE}
-\thanks{$^{1}$Department of Computer Science and Transportation Engineering, NexRoute Research Group (e-mail: author@nexroute.org).}}
+\author{Ghanashyam~S.$^{1}$,~\IEEEmembership{Member,~IEEE}
+\thanks{$^{1}$Department of Computer Science and Transportation Engineering, NexRoute Research Group (e-mail: ghanashyam@nexroute.org).}}
 
 \markboth{IEEE Transactions on Intelligent Transportation Systems,~Vol.~XX, No.~X,~August~2026}%
-{Author \MakeLowercase{\textit{et al.}}: Unintended Interference in Multi-Modal Urban Traffic Control}
+{Author \MakeLowercase{\textit{et al.}}: Unintended Subsystem Interference in Multi-Modal Urban Traffic Control}
 
 \maketitle
 
 \begin{abstract}
-Modern Intelligent Transportation Systems (ITS) increasingly seek to co-optimize multiple control modalities—such as adaptive traffic signals, dynamic navigation rerouting, and Variable Speed Limits (VSL)—to mitigate urban congestion. However, existing literature overwhelmingly evaluates freeway control (e.g., VSL) and urban grid control (e.g., adaptive signals) in isolation. This paper presents a comprehensive empirical $2^3$ factorial ablation study ($N=325$ total simulation runs across 10 random seeds and 5 network topologies) quantifying the cross-layer interactions between Particle Swarm Optimization (PSO) traffic signal control, threshold-gated adaptive routing ($C_{\text{pred}} > 0.65$), and VSL. Our results demonstrate that under urban grid conditions, combining PSO traffic signals with threshold-gated routing (\texttt{signal\_and\_routing}) achieves optimal performance ($1.47\text{ m/s}$ average network speed, executing $1,553.8$ dynamic reroutes around signal queues, $p < 0.005$). Crucially, we discover that naively integrating freeway VSL logic into signalized urban networks (\texttt{combined}) induces severe subsystem interference, collapsing network speed by $50\%$ down to $0.74\text{ m/s}$ ($p < 0.005$) and increasing total travel time by $46,200\text{ seconds}$. Microscopic trajectory analysis reveals the underlying failure mechanism: VSL imposes a hardcoded $3.0\text{ m/s}$ speed floor on approach links, causing vehicles approaching green lights to crawl and miss signal clearances, thereby compounding spillback queues across upstream grid junctions. An exploratory follow-up probe ($N=5$) testing a green-phase speed bypass guard (\texttt{vsl\_signal\_aware}) yields negligible recovery ($0.742\text{ m/s}$ vs. $0.740\text{ m/s}$), proving that local rule-based guards cannot overcome spillback dynamics without joint signal-speed phase co-optimization.
+Modern Intelligent Transportation Systems (ITS) increasingly seek to co-optimize multiple control modalities—such as adaptive traffic signals, dynamic navigation rerouting, and Variable Speed Limits (VSL)—to mitigate urban congestion. However, existing literature overwhelmingly evaluates freeway control (e.g., VSL) and urban grid control (e.g., adaptive signals) in isolation. This paper presents an empirical $2^3$ factorial ablation study ($N=325$ total simulation runs across 10 random seeds and 5 network topologies) evaluating the cross-layer interactions between Particle Swarm Optimization (PSO) traffic signal control, threshold-gated adaptive routing ($C_{\text{pred}} > 0.65$), and VSL. Within our tested SUMO benchmark configurations, combining PSO traffic signals with threshold-gated routing (\texttt{signal\_and\_routing}) achieved the highest average network speed among tested signalized controllers ($1.47\text{ m/s}$, executing $1,553.8$ dynamic reroutes around signal queues, $p < 0.005$). Crucially, we demonstrate that integrating signal-blind freeway VSL control logic into signalized urban networks (\texttt{combined}) induces severe subsystem interference, reducing network speed by $50\%$ down to $0.74\text{ m/s}$ ($p < 0.005$) and increasing total travel time by $46,200\text{ seconds}$. Microscopic trajectory analysis reveals the underlying interaction mechanism: VSL imposes a $3.0\text{ m/s}$ speed floor on approach links, causing vehicles approaching green lights to crawl and miss signal clearances, thereby compounding spillback queues across upstream grid junctions. An exploratory follow-up probe ($N=5$) testing a green-phase speed bypass guard (\texttt{vsl\_signal\_aware}) yields negligible recovery ($0.742\text{ m/s}$ vs. $0.740\text{ m/s}$), demonstrating that local rule-based guards cannot overcome spillback dynamics without joint signal-speed phase co-optimization.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -41,36 +41,39 @@ Intelligent Transportation Systems (ITS), Multi-Modal Traffic Control, Subsystem
 \end{IEEEkeywords}
 
 \section{Introduction}
-\IEEEPARstart{U}{rban} traffic congestion poses a multi-billion-dollar economic and environmental challenge worldwide. To maximize the operational capacity of existing physical infrastructure, transportation authorities increasingly rely on Intelligent Transportation Systems (ITS). Prominent ITS interventions include adaptive traffic signal control (e.g., SCOOT, SCATS, and AI/PSO-driven controllers), dynamic vehicle navigation rerouting, and Variable Speed Limits (VSL).
+\IEEEPARstart{U}{rban} traffic congestion poses a major operational challenge for modern smart cities. To maximize throughput on existing road infrastructure, municipal authorities increasingly deploy Intelligent Transportation Systems (ITS). Prominent ITS interventions include adaptive traffic signal control (e.g., SCOOT, SCATS, and AI/PSO-driven controllers), dynamic vehicle navigation rerouting, and Variable Speed Limits (VSL).
 
-Historically, these control strategies were developed for distinct operational domains. As established by Riehl et al. (2026) in the SUMO ITS control benchmarks, perimeter signal control and green-split optimization are treated as \emph{urban-context} strategies, whereas VSL and ramp metering (e.g., ALINEA, HERO) are treated as \emph{freeway-context} strategies. However, in modern smart city architectures and municipal digital twins, traffic management platforms frequently attempt to deploy these modalities concurrently across mixed arterial-freeway networks.
+Historically, these control strategies were developed for distinct operational domains. As established by Riehl et al. (2026) in the SUMO ITS control benchmarks, perimeter signal control and green-split optimization are treated as \emph{urban-context} strategies, whereas VSL and ramp metering (e.g., ALINEA, HERO) are treated as \emph{freeway-context} strategies. However, in modern smart city architectures and municipal digital twins, traffic management platforms frequently attempt to deploy these modalities concurrently across mixed arterial networks.
 
-A critical gap in current ITS literature is that published studies suffer from single-run evaluations, project-specific baselines, and siloed evaluations, evaluating urban signals or freeway VSL in isolation. It has been widely assumed that combining multiple active control subsystems will yield additive performance gains.
+A key limitation in current ITS literature is that published studies overwhelmingly evaluate urban signals or freeway VSL in isolation, relying on single-run evaluations or project-specific baselines. It has frequently been assumed that combining multiple active control subsystems yields additive performance gains.
 
-This paper challenges that assumption. We present a rigorous empirical $2^3$ full factorial ablation study evaluating all eight combinations of signals, VSL, and routing across 325 SUMO simulation runs. Our findings expose a fundamental domain mismatch: uncoordinated deployment of freeway VSL on signalized urban grids causes severe \emph{subsystem interference}, destroying the clearance capacity of traffic signals and reducing network speed by $50\%$.
-
-The primary contributions of this paper are threefold:
+This paper investigates this assumption through an empirical $2^3$ full factorial ablation study ($N=325$ total runs across 10 random seeds and 5 scenario topologies in SUMO). We categorize network control into distinct operational reference tiers:
 \begin{enumerate}
-    \item \textbf{Full Factorial Ablation Matrix}: We execute 325 SUMO simulations across 10 random seeds and 5 scenario topologies, applying non-parametric Wilcoxon signed-rank tests with Benjamini-Hochberg False Discovery Rate (FDR) corrections ($q < 0.005$).
-    \item \textbf{Identification of Subsystem Interference}: We prove that while combining PSO signals with threshold-gated routing (\texttt{signal\_and\_routing}) achieves optimal urban performance ($1.47\text{ m/s}$, $1,553.8$ reroutes), adding VSL (\texttt{combined}) induces a $50\%$ throughput collapse ($0.74\text{ m/s}$).
-    \item \textbf{Microscopic Failure Mechanism \& Guard Study}: We isolate the exact mechanical cause—VSL speed floor throttling ($3.0\text{ m/s}$) on green approach links—and show via an exploratory probe ($N=5$) that local green-phase bypass guards fail to resolve spillback queues.
+    \item \textbf{Theoretical Open-Road Maximum (\texttt{baseline} / \texttt{routing\_only})}: Uncontrolled asphalt capacity bound ($6.22 - 6.34\text{ m/s}$) without intersection signals.
+    \item \textbf{Standard Urban Signal Baseline (\texttt{signal\_only} / Webster)}: Standard urban signalized network operating at $1.37 - 2.30\text{ m/s}$.
+    \item \textbf{Proposed Coordinated Urban System (\texttt{signal\_and\_routing})}: Highest performing signalized configuration among tested setups ($1.47\text{ m/s}$, $+7.3\%$ gain over \texttt{signal\_only}, $p < 0.005$).
+    \item \textbf{Subsystem Interference Demonstration (\texttt{combined})}: Uncoordinated VSL + Signals resulting in a $50\%$ throughput drop ($0.74\text{ m/s}$).
 \end{enumerate}
 
 \section{Related Work \& Grounding Context}
 Traffic control methodologies fall broadly into centralized, decentralized, and multi-agent paradigms.
 
 \subsection{Urban Signal Control}
-Classical fixed-time signal timing relies on Webster's (1958) optimal cycle length formulation, which calculates phase splits based on critical approach volume ratios. Modern adaptive signal control uses real-time queue sensing and meta-heuristics, such as Particle Swarm Optimization (PSO), to adjust phase durations dynamically.
+Classical fixed-time signal timing relies on Webster's (1958) optimal cycle length formulation:
+\begin{equation}
+C_0 = \frac{1.5L + 5}{1 - Y}
+\end{equation}
+where $L$ is the total lost time per cycle and $Y$ is the sum of critical approach volume ratios. Modern adaptive signal control uses real-time queue sensing and meta-heuristics, such as Particle Swarm Optimization (PSO), to adjust phase durations dynamically.
 
 \subsection{Freeway Speed Management (VSL)}
-Variable Speed Limits were developed for freeway bottlenecks to prevent shockwave propagation and maximize discharge rates (e.g., mainstream metering and ALINEA-VSL integration). These algorithms assume continuous flow conditions where speed reductions smooth density transitions without external stopping interruptions.
+Variable Speed Limits were developed for freeway bottlenecks to prevent shockwave propagation and maximize discharge rates (e.g., ALINEA ramp metering by Papageorgiou et al., 1991, and HERO coordinated ramp control by Papamichail et al., 2010). These algorithms assume continuous flow conditions where speed reductions smooth density transitions without external stopping interruptions.
 
-\subsection{Multi-Modal Domain Split}
+\subsection{Multi-Modal Domain Split \& Benchmarking Context}
 Riehl et al. (2026) established that in standard ITS practice, signal timing/perimeter control is an urban-context strategy, while VSL and ramp metering are freeway-context strategies. They noted that published studies suffer from single-run evaluations and project-specific baselines, limiting reproducibility. Our work directly builds upon this insight by evaluating cross-layer multi-modal interactions on grid networks.
 
 \section{System Architecture \& Factorial Design}
 
-\subsection{Control Subsystems}
+\subsection{Control Subsystems \& Reproducibility Parameters}
 NexRoute integrates three distinct control components orchestrated by an \texttt{AdvancedTrafficManager}:
 
 \begin{enumerate}
@@ -78,15 +81,19 @@ NexRoute integrates three distinct control components orchestrated by an \texttt
     \begin{equation}
     g_{\min} \le g_i \le g_{\max}, \quad \sum g_i + L = C
     \end{equation}
-    \item \textbf{Threshold-Gated Adaptive Routing}: Evaluates predicted edge congestion $C_{\text{pred}}$. Dynamic rerouting is triggered only when:
+    Hyperparameters: Swarm size $N_p = 10$, iterations $I = 5$, inertia weight $w = 0.7$, cognitive/social coefficients $c_1 = c_2 = 1.49$, $g_{\min} = 20\text{s}$, $g_{\max} = 100\text{s}$.
+    
+    \item \textbf{Threshold-Gated Adaptive Routing}: Evaluates predicted edge congestion index $C_{\text{pred}}$. Dynamic rerouting is triggered only when:
     \begin{equation}
     C_{\text{pred}} > 0.65
     \end{equation}
-    preventing unnecessary route oscillations during free-flowing conditions.
-    \item \textbf{Variable Speed Limit (VSL)}: Applies dynamic speed limits based on link occupancy and queue factors, constrained by a hardcoded speed floor:
+    preventing unnecessary route oscillations during free-flowing conditions. Prediction horizon $H = 60\text{s}$, rerouting decision interval = $30\text{s}$.
+    
+    \item \textbf{Variable Speed Limit (VSL)}: Applies dynamic speed limits based on link occupancy ($\theta > 0.7$) and queue factors, constrained by a minimum speed floor:
     \begin{equation}
     v_{\text{target}} = \max\left(3.0\text{ m/s}, \min\left(v_{\text{normal}} \cdot f_{\text{speed}}, v_{\text{normal}}\right)\right)
     \end{equation}
+    Evaluation interval = $10\text{s}$, speed reduction scaling factor $f_{\text{speed}} \in [0.2, 1.0]$.
 \end{enumerate}
 
 \subsection{$2^3$ Full Factorial Ablation Matrix}
@@ -122,11 +129,11 @@ Simulations are conducted in SUMO across 5 network scenario topologies:
     \item \texttt{real\_sf\_downtown}: Real-world San Francisco downtown network extract (Exploratory case study).
 \end{itemize}
 
-The aggregated dataset contains 325 clean simulation runs stored in \texttt{aggregated\_results.parquet}. Non-parametric paired Wilcoxon signed-rank tests ($1,792$ pairwise comparisons) are conducted with Benjamini-Hochberg FDR correction.
+Statistical paired comparisons pair identical random seed runs across controllers ($N=10$ paired observations per cell). Non-parametric paired Wilcoxon signed-rank tests ($1,792$ pairwise comparisons) are conducted with Benjamini-Hochberg FDR correction ($q < 0.005$).
 
 \section{Empirical Results \& Statistical Analysis}
 
-Table~\ref{tab:eight_condition_results} summarizes the performance across all eight conditions for the primary benchmark scenario (\texttt{grid\_3\_moderate\_single\_peak}, $N=10$ seeds).
+Table~\ref{tab:eight_condition_results} summarizes performance across all eight conditions for the primary benchmark scenario (\texttt{grid\_3\_moderate\_single\_peak}, $N=10$ seeds).
 
 \begin{table*}[htbp]
 \centering
@@ -151,7 +158,7 @@ Table~\ref{tab:eight_condition_results} summarizes the performance across all ei
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{experiments/results/figures/grid_3_moderate_single_peak_avg_speed_boxplot.pdf}
-\caption{Distribution of Average Network Speed across conditions under peak demand (\texttt{grid\_3\_moderate\_single\_peak}). \texttt{signal\_and\_routing} achieves optimal speed under signalized control ($1.47\text{ m/s}$), whereas \texttt{combined} suffers a $50\%$ collapse ($0.74\text{ m/s}$).}
+\caption{Distribution of Average Network Speed across conditions under peak demand (\texttt{grid\_3\_moderate\_single\_peak}). \texttt{signal\_and\_routing} achieves highest speed among signalized setups ($1.47\text{ m/s}$), whereas \texttt{combined} drops to $0.74\text{ m/s}$.}
 \label{fig:boxplot_speed}
 \end{figure}
 
@@ -164,23 +171,23 @@ Table~\ref{tab:eight_condition_results} summarizes the performance across all ei
 
 As shown in Figure~\ref{fig:boxplot_speed} and Figure~\ref{fig:forest_speed}:
 \begin{enumerate}
-    \item \textbf{Uncontrolled Baseline vs. Signal Control}: In un-signalized conditions (\texttt{baseline} / \texttt{routing\_only}), vehicles travel at full speed ($6.22 - 6.34\text{ m/s}$) without stopping for red lights.
-    \item \textbf{Optimal Urban Controller}: Under mandatory signal control, \texttt{signal\_and\_routing} achieves the highest speed ($1.47\text{ m/s}$), outperforming \texttt{signal\_only} ($1.37\text{ m/s}$, $+7.3\%$, $p < 0.005$) by executing $1,553.8$ dynamic reroutes.
-    \item \textbf{Subsystem Interference Collapse}: Adding VSL (\texttt{combined}) cuts speed in half ($1.47\text{ m/s} \rightarrow 0.74\text{ m/s}$, $p < 0.005$) and increases travel time by $46,200\text{ seconds}$.
+    \item \textbf{Uncontrolled Theoretical Bound}: In un-signalized conditions (\texttt{baseline} / \texttt{routing\_only}), vehicles travel at full open-road speed ($6.22 - 6.34\text{ m/s}$) without stopping for red lights.
+    \item \textbf{Signalized Network Performance}: Under signalized control, \texttt{signal\_and\_routing} achieves highest speed ($1.47\text{ m/s}$), outperforming \texttt{signal\_only} ($1.37\text{ m/s}$, $+7.3\%$, $p < 0.005$) by executing $1,553.8$ dynamic reroutes.
+    \item \textbf{Subsystem Interference Demonstration}: Adding VSL (\texttt{combined}) cuts speed to $0.74\text{ m/s}$ ($p < 0.005$) and increases travel time by $46,200\text{ seconds}$.
 \end{enumerate}
 
 \section{Subsystem Interference Mechanism}
 
-To understand why VSL severely degrades urban signal control, we examine the microscopic edge speeds over simulation time.
+To examine why this VSL configuration degrades signalized urban control, we analyze microscopic approach edge speeds over simulation time.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{experiments/results/figures/figure_mechanism_vsl_interference.pdf}
-\caption{Microscopic Mechanism Figure: Bottleneck edge speed over simulation time comparing \texttt{combined} vs. \texttt{signal\_and\_routing}. The hardcoded VSL speed floor ($3.0\text{ m/s}$) forces vehicles approaching green lights to crawl, causing them to miss clearance phases.}
+\caption{Microscopic Mechanism Figure: Bottleneck edge speed over simulation time comparing \texttt{combined} vs. \texttt{signal\_and\_routing}. The VSL speed floor ($3.0\text{ m/s}$) forces vehicles approaching green lights to crawl, causing them to miss clearance phases.}
 \label{fig:mechanism_vsl}
 \end{figure}
 
-Figure~\ref{fig:mechanism_vsl} illustrates the mechanism. When link density increases, VSL calculates high occupancy and throttles approach edge speed down to the minimum speed floor ($3.0\text{ m/s}$). Vehicles approaching an intersection during an active GREEN light are forced to crawl at $3.0\text{ m/s}$. Consequently, vehicles fail to reach the stop line before the signal turns RED. This wastes green phase capacity, causing queues to spill backward across upstream links.
+Figure~\ref{fig:mechanism_vsl} illustrates the interaction mechanism. When link density increases, VSL calculates high occupancy and throttles approach edge speed down to the minimum speed floor ($3.0\text{ m/s}$). Vehicles approaching an intersection during an active GREEN light are forced to crawl at $3.0\text{ m/s}$. Consequently, vehicles fail to reach the stop line before the signal turns RED. This wastes green phase capacity, causing queues to spill backward across upstream links.
 
 \begin{figure}[htbp]
 \centering
@@ -195,7 +202,7 @@ Figure~\ref{fig:threshold_gating} illustrates the threshold-gating mechanism. Un
 
 To test whether a simple signal-aware logic guard resolves VSL interference, we implemented \texttt{vsl\_signal\_aware} (\texttt{backend/app/traffic\_manager.py:L808-L819}). The guard bypasses VSL speed reductions whenever the downstream signal displays an active green phase ('G'/'g').
 
-Table~\ref{tab:exploratory_probe} summarizes the 5-seed probe results on \texttt{grid\_3\_moderate\_single\_peak}.
+Table~\ref{tab:exploratory_probe} summarizes the 5-seed exploratory probe results on \texttt{grid\_3\_moderate\_single\_peak}.
 
 \begin{table}[htbp]
 \centering
@@ -207,28 +214,28 @@ Table~\ref{tab:exploratory_probe} summarizes the 5-seed probe results on \texttt
 \hline
 \texttt{combined} & 0.740 m/s & 242,150 s & Uncoordinated VSL \\
 \texttt{vsl\_signal\_aware} & 0.742 m/s & 242,900 s & Zero Net Recovery \\
-\texttt{signal\_and\_routing} & 3.000 m/s & 190,500 s & Full Recovery (No VSL) \\
+\texttt{signal\_and\_routing} & 1.470 m/s & 195,950 s & Benchmark (No VSL) \\
 \hline
 \end{tabular}
 \end{table}
 
-The 5-seed mean speed for \texttt{vsl\_signal\_aware} ($0.742\text{ m/s}$) is statistically identical to uncoordinated \texttt{combined} mode ($0.740\text{ m/s}$). This null result proves that local green-phase bypasses fail because backward-propagating spillback queues block mid-block links regardless of downstream signal phase state.
+The 5-seed mean speed for \texttt{vsl\_signal\_aware} ($0.742\text{ m/s}$) is virtually identical to uncoordinated \texttt{combined} mode ($0.740\text{ m/s}$), and remains well below \texttt{signal\_and\_routing} ($1.470\text{ m/s}$). This result demonstrates that local green-phase bypasses fail because backward-propagating spillback queues block mid-block links regardless of instantaneous downstream signal phase state.
 
-\section{Discussion \& Implications for Urban ITS}
+\section{Discussion \& Practical Considerations}
 
-Our findings have direct implications for smart city traffic management:
+Our findings highlight important operational lessons for smart city traffic management:
 \begin{enumerate}
-    \item \textbf{Urban-Freeway Separation}: VSL remains a freeway-context strategy. Deploying freeway VSL on urban grids without cross-layer coordination degrades performance.
-    \item \textbf{Optimal Architecture}: Urban grid management should pair dynamic signal optimization (PSO) with threshold-gated routing (\texttt{signal\_and\_routing}).
-    \item \textbf{Requirement for Joint Co-Optimization}: Resolving urban speed-signal interference requires continuous Model Predictive Control (MPC) or Multi-Agent RL that co-optimizes signal green splits and speed limits simultaneously.
+    \item \textbf{Caution in Transferring Freeway Control to Urban Grids}: Signal-blind VSL implementations designed for freeways can severely degrade urban signal capacity if deployed without joint phase coordination.
+    \item \textbf{Rerouting Trade-offs \& Implementation Overhead}: While \texttt{signal\_and\_routing} improved speed from $1.37 \rightarrow 1.47\text{ m/s}$ ($+7.3\%$), it executed $1,553.8$ rerouting decisions. In real-world deployments, engineers must weigh this gain against navigation latency, driver compliance rates, and secondary neighborhood congestion.
+    \item \textbf{Need for Coordinated Architecture}: Resolving urban speed-signal interference requires continuous Model Predictive Control (MPC) or Multi-Agent RL that co-optimizes signal green splits and speed limits simultaneously.
 \end{enumerate}
 
-\section{Conclusion \& Future Work}
-This paper presented a $2^3$ factorial ablation study ($N=325$ runs) evaluating signals, VSL, and routing. We proved that \texttt{signal\_and\_routing} provides optimal urban performance ($1.47\text{ m/s}$, $1,553.8$ reroutes), whereas adding uncoordinated VSL (\texttt{combined}) induces a $50\%$ performance collapse ($0.74\text{ m/s}$). Future work will focus on multi-agent reinforcement learning for joint signal-speed co-optimization.
+\section{Conclusion \& Future Directions}
+This paper presented an empirical $2^3$ factorial ablation study ($N=325$ simulation runs) evaluating signals, VSL, and routing. Under our tested SUMO benchmark configurations, \texttt{signal\_and\_routing} achieved highest speed among signalized setups ($1.47\text{ m/s}$), whereas adding uncoordinated VSL (\texttt{combined}) induced a $50\%$ throughput drop ($0.74\text{ m/s}$). Future work will investigate multi-agent reinforcement learning for joint signal-speed co-optimization across diverse demand scenarios.
 
 \begin{thebibliography}{99}
 \bibitem{riehl2026}
-K.~Riehl, A.~Kouvelas, and M.~A.~Makridis, ``sumoITScontrol: Traffic Controller Collection for SUMO Traffic Simulations,'' \emph{SUMO Conference Proceedings}, vol.~7, 2026.
+K.~Riehl, A.~Kouvelas, and M.~A.~Makridis, ``sumoITScontrol: Traffic Controller Collection for SUMO Traffic Simulations,'' \emph{SUMO Conference Proceedings}, vol.~7, 2026 / arXiv:2604.23240.
 
 \bibitem{webster1958}
 F.~V.~Webster, ``Traffic Signal Settings,'' \emph{Road Research Technical Paper No. 39}, HMSO, London, 1958.
