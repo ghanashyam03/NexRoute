@@ -44,7 +44,9 @@ class AdvancedTrafficManager:
         enable_signals: Optional[bool] = None,
         enable_vsl: Optional[bool] = None,
         enable_routing: Optional[bool] = None,
-        vsl_signal_aware: bool = False
+        vsl_signal_aware: bool = False,
+        vsl_min_speed: float = 5.0,
+        routing_threshold: float = 0.65
     ): 
         if scenario_config is None:
             scenario_config = load_scenario(os.getenv('SCENARIO_NAME', 'default'))
@@ -54,6 +56,8 @@ class AdvancedTrafficManager:
         self.seed = seed
         self.headless = headless
         self.vsl_signal_aware = vsl_signal_aware
+        self.vsl_min_speed = vsl_min_speed
+        self.ADAPTIVE_ROUTING_THRESHOLD = routing_threshold
 
         if headless:
             self.scenario_config.gui = False
@@ -793,8 +797,9 @@ class AdvancedTrafficManager:
                     stop_factor = min(1.0, metrics.stop_count / 3) * 0.4 if metrics.stop_count is not None else 0
                     
                     # Calculate speed adjustment with improved formula
+                    min_floor = getattr(self, 'vsl_min_speed', 3.0)
                     speed_factor = max( 
-                        min_speed_factor, 
+                        min_floor / max(1.0, normal_speed), 
                         1.0 - (
                             congestion * 0.5 +  # Increased impact
                             queue_factor * 0.4 +  # Increased impact
@@ -803,9 +808,9 @@ class AdvancedTrafficManager:
                         )
                     ) 
                      
-                    # Apply new speed limit with improved bounds 
-                    new_speed = normal_speed * speed_factor 
-                    new_speed = max(3.0, min(new_speed, normal_speed))  # Increased minimum speed
+                    # Apply new speed limit with configurable minimum speed floor for Speed Harmonization
+                    target_speed = normal_speed * speed_factor
+                    new_speed = max(min_floor, min(target_speed, normal_speed))
 
                     # Exploratory signal-aware guard: if downstream TLS has active green phase, bypass speed reduction
                     if self.vsl_signal_aware:

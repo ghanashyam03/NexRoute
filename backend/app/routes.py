@@ -32,7 +32,9 @@ def init_traffic_manager(
     enable_signals: Optional[bool] = None,
     enable_vsl: Optional[bool] = None,
     enable_routing: Optional[bool] = None,
-    vsl_signal_aware: bool = False
+    vsl_signal_aware: bool = False,
+    vsl_min_speed: float = 5.0,
+    routing_threshold: float = 0.65
 ) -> AdvancedTrafficManager:
     """Initialize or reconfigure the traffic manager with specified scenario, seed, and headless options."""
     global traffic_manager, scenario_config
@@ -48,7 +50,9 @@ def init_traffic_manager(
         enable_signals=enable_signals,
         enable_vsl=enable_vsl,
         enable_routing=enable_routing,
-        vsl_signal_aware=vsl_signal_aware
+        vsl_signal_aware=vsl_signal_aware,
+        vsl_min_speed=vsl_min_speed,
+        routing_threshold=routing_threshold
     )
     return traffic_manager
 

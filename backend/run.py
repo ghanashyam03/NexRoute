@@ -89,7 +89,20 @@ def parse_args(args=None):
     parser.add_argument(
         "--vsl-signal-aware",
         action="store_true",
-        help="Enable exploratory signal-phase-aware VSL speed limit bypass on green approaches"
+        default=False,
+        help="Enable green-phase speed bypass guard for VSL"
+    )
+    parser.add_argument(
+        "--vsl-min-speed",
+        type=float,
+        default=5.0,
+        help="Minimum speed limit floor for VSL speed harmonization (default: 5.0 m/s)"
+    )
+    parser.add_argument(
+        "--routing-threshold",
+        type=float,
+        default=0.65,
+        help="Congestion index threshold (C_pred) for dynamic rerouting activation (default: 0.65)"
     )
     return parser.parse_args(args)
 
@@ -109,7 +122,9 @@ def run_batch_mode(parsed_args):
             enable_signals=parsed_args.enable_signals,
             enable_vsl=parsed_args.enable_vsl,
             enable_routing=parsed_args.enable_routing,
-            vsl_signal_aware=parsed_args.vsl_signal_aware
+            vsl_signal_aware=parsed_args.vsl_signal_aware,
+            vsl_min_speed=parsed_args.vsl_min_speed,
+            routing_threshold=parsed_args.routing_threshold
         )
 
         if getattr(parsed_args, 'congestion_weights', None):
